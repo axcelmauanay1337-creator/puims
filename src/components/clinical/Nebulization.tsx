@@ -7,8 +7,9 @@ import { discontinueNebOrderAction, documentNebulizationAction, enterNebOrderAct
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Modal } from "@/components/ui/Modal";
 import { Badge, StatusBadge } from "@/components/ui/primitives";
+import { FlagBoxes, FlagChips, type FlagsView } from "@/components/workspace/Flags";
 import { FREQUENCY_PRESETS } from "@/lib/clinical/vocabulary";
-import { formatDayTime, formatTime } from "@/lib/time/zoned";
+import { formatClock, formatDayTime, formatTime } from "@/lib/time/zoned";
 import type { NebRow } from "@/server/nebulization";
 import { Buttons, FormError, inputCls, labelCls, ManilaDateTime, manilaLocalOf, manilaNowLocal, PatientPicker, useClientId } from "./fields";
 
@@ -20,7 +21,8 @@ const OUTCOMES = [
   ["CANCELLED", "Cancelled"],
 ] as const;
 
-interface DoseTarget {
+export interface DoseTarget {
+  flags?: FlagsView;
   orderId: string;
   orderReference: string;
   medication: string;
@@ -28,7 +30,7 @@ interface DoseTarget {
   scheduledIso: string | null;
 }
 
-function DocumentDoseDialog({ target, onClose }: { target: DoseTarget; onClose: () => void }) {
+export function DocumentDoseDialog({ target, onClose, notice }: { target: DoseTarget; onClose: () => void; notice?: React.ReactNode }) {
   const router = useRouter();
   const clientId = useClientId();
   const [status, setStatus] = useState<string>("COMPLETED");
@@ -48,6 +50,13 @@ function DocumentDoseDialog({ target, onClose }: { target: DoseTarget; onClose: 
       <p className="mb-3 text-[12px] text-ink-2">
         <b>{target.patient}</b> · {target.orderReference} · {target.medication}
       </p>
+      {notice ? (
+        <div className="mb-3">{notice}</div>
+      ) : target.flags ? (
+        <div className="mb-3">
+          <FlagBoxes flags={target.flags} />
+        </div>
+      ) : null}
       <form
         onSubmit={async (e) => {
           e.preventDefault();
@@ -161,6 +170,9 @@ export function NebWorklist({ rows, me, isChief, canDocument }: { rows: NebRow[]
             {r.patient.hospitalId}
             {r.patient.wardRoom ? ` · ${r.patient.wardRoom}` : ""}
           </span>
+          <span className="mt-1 block">
+            <FlagChips flags={r.patient} />
+          </span>
         </Link>
       ),
       sort: (r) => r.patient.name,
@@ -207,6 +219,7 @@ export function NebWorklist({ rows, me, isChief, canDocument }: { rows: NebRow[]
                   medication: r.medication,
                   patient: r.patient.name,
                   scheduledIso: r.scheduledIso,
+                  flags: r.patient,
                 })
               }
               className="min-h-9 rounded-[7px] border border-accent bg-accent px-3 text-[12px] font-semibold text-white hover:bg-accent-hover"
@@ -294,7 +307,7 @@ export function ActiveOrders({ orders, canDocument, canOrder }: { orders: Active
       header: "Times on order",
       cell: (r) =>
         r.prescribedTimes.length ? (
-          <span className="tabular">{r.prescribedTimes.join(", ")}</span>
+          <span className="tabular">{r.prescribedTimes.map(formatClock).join(", ")}</span>
         ) : (
           <span className="text-ink-3">None written — document doses as given</span>
         ),
@@ -363,10 +376,10 @@ export function ActiveOrders({ orders, canDocument, canOrder }: { orders: Active
   );
 }
 
-export function NewOrderForm() {
+export function NewOrderForm({ initialPatient = null }: { initialPatient?: { id: string; title: string; subtitle: string } | null }) {
   const router = useRouter();
   const clientId = useClientId();
-  const [patient, setPatient] = useState<{ id: string; title: string; subtitle: string } | null>(null);
+  const [patient, setPatient] = useState<{ id: string; title: string; subtitle: string } | null>(initialPatient);
   const [f, setF] = useState({
     orderReference: "",
     prescriber: "",

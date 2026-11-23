@@ -141,25 +141,38 @@ const pad2 = (n: number) => String(n).padStart(2, "0");
 /*
  * Formatting is built from numeric parts rather than locale strings so the
  * server and every browser produce byte-identical output (no ICU drift, no
- * hydration mismatch). 24-hour clock, hospital timezone always explicit.
+ * hydration mismatch). 12-hour clock with AM/PM (product owner, 2026-11-23),
+ * hospital timezone always explicit.
  */
 
-/** e.g. "22 Nov 2026, 14:05" */
+/** e.g. "2:05 PM" */
+function clock12(hour: number, minute: number): string {
+  const h = hour % 12 === 0 ? 12 : hour % 12;
+  return `${h}:${pad2(minute)} ${hour < 12 ? "AM" : "PM"}`;
+}
+
+/** e.g. "22 Nov 2026, 2:05 PM" */
 export function formatDateTime(instant: Date, tz: string = HOSPITAL_TZ): string {
   const p = toLocalParts(instant, tz);
-  return `${p.day} ${MONTHS[p.month - 1]} ${p.year}, ${pad2(p.hour)}:${pad2(p.minute)}`;
+  return `${p.day} ${MONTHS[p.month - 1]} ${p.year}, ${clock12(p.hour, p.minute)}`;
 }
 
-/** e.g. "14:05" */
+/** e.g. "2:05 PM" */
 export function formatTime(instant: Date, tz: string = HOSPITAL_TZ): string {
   const p = toLocalParts(instant, tz);
-  return `${pad2(p.hour)}:${pad2(p.minute)}`;
+  return clock12(p.hour, p.minute);
 }
 
-/** e.g. "22 Nov, 14:05" */
+/** "14:30" (wall clock as stored) → "2:30 PM". */
+export function formatClock(hhmm: string): string {
+  const m = /^(\d{1,2}):(\d{2})/.exec(hhmm);
+  return m ? clock12(Number(m[1]), Number(m[2])) : hhmm;
+}
+
+/** e.g. "22 Nov, 2:05 PM" */
 export function formatDayTime(instant: Date, tz: string = HOSPITAL_TZ): string {
   const p = toLocalParts(instant, tz);
-  return `${p.day} ${MONTHS[p.month - 1]}, ${pad2(p.hour)}:${pad2(p.minute)}`;
+  return `${p.day} ${MONTHS[p.month - 1]}, ${clock12(p.hour, p.minute)}`;
 }
 
 function weekdayOf(date: IsoDate): string {

@@ -21,7 +21,7 @@ export default async function ShiftsPage() {
         eyebrow="Management"
         title="Shift Management"
         crumbs={[{ label: "Management" }, { label: "Shift Management" }]}
-        description="Three 8-hour shifts in Asia/Manila. The operational day runs 06:00–06:00; events from 00:00 to 05:59 belong to the previous operational date's night shift."
+        description="Three 8-hour shifts in Asia/Manila. The operational day runs 6:00 AM–6:00 AM; events from midnight to 5:59 AM belong to the previous operational date's night shift."
       />
       <Card className="mb-4" aria-labelledby="rules-h">
         <CardHeader id="rules-h" title="Shift rules" subtitle="Server-authoritative classification by actual event time" />

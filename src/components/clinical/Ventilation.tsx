@@ -379,13 +379,23 @@ export function VentilationList({ rows, canDocument, me, isChief }: { rows: Vent
   );
 }
 
-export function HookInForm({ intervalDays }: { intervalDays: number }) {
+export function HookInForm({
+  intervalDays,
+  initialPatient = null,
+  units = [],
+}: {
+  intervalDays: number;
+  initialPatient?: { id: string; title: string; subtitle: string; wardRoom?: string | null } | null;
+  /** Free ventilators on the equipment board. */
+  units?: Array<{ id: string; code: string; model: string; rented: boolean }>;
+}) {
   const router = useRouter();
   const clientId = useClientId();
-  const [patient, setPatient] = useState<{ id: string; title: string; subtitle: string } | null>(null);
+  const [patient, setPatient] = useState<{ id: string; title: string; subtitle: string } | null>(initialPatient);
   const [f, setF] = useState({
+    equipmentId: "",
     ventilatorRef: "",
-    wardRoom: "",
+    wardRoom: initialPatient?.wardRoom ?? "",
     hookedAt: manilaNowLocal(),
     newCircuitInstalled: false,
     airwayType: "",
@@ -415,16 +425,32 @@ export function HookInForm({ intervalDays }: { intervalDays: number }) {
     >
       <PatientPicker value={patient} onChange={setPatient} />
       <div className="grid gap-4 sm:grid-cols-2">
-        <label className={labelCls}>
-          Ventilator identifier <span className="text-danger">*</span>
-          <input
-            className={inputCls}
-            value={f.ventilatorRef}
-            onChange={(e) => setF((x) => ({ ...x, ventilatorRef: e.target.value }))}
-            maxLength={60}
-            required
-          />
-        </label>
+        {units.length ? (
+          <label className={labelCls}>
+            Ventilator (free units) <span className="text-danger">*</span>
+            <select className={inputCls} value={f.equipmentId} onChange={(e) => setF((x) => ({ ...x, equipmentId: e.target.value }))}>
+              <option value="">Other / not on the board…</option>
+              {units.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.code} · {u.model}
+                  {u.rented ? " (rented)" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        {!f.equipmentId ? (
+          <label className={labelCls}>
+            Ventilator identifier <span className="text-danger">*</span>
+            <input
+              className={inputCls}
+              value={f.ventilatorRef}
+              onChange={(e) => setF((x) => ({ ...x, ventilatorRef: e.target.value }))}
+              maxLength={60}
+              required
+            />
+          </label>
+        ) : null}
         <label className={labelCls}>
           Ward / room <span className="text-danger">*</span>
           <input className={inputCls} value={f.wardRoom} onChange={(e) => setF((x) => ({ ...x, wardRoom: e.target.value }))} maxLength={60} required />
@@ -489,7 +515,17 @@ export function HookInForm({ intervalDays }: { intervalDays: number }) {
 
 const REASONS = ["Scheduled replacement", "Visibly soiled / contaminated", "Damaged / leaking", "Other"];
 
-function ReplaceDialog({ row, intervalDays, onClose }: { row: TubingRowView; intervalDays: number; onClose: () => void }) {
+export function ReplaceDialog({
+  row,
+  intervalDays,
+  onClose,
+  notice,
+}: {
+  row: TubingRowView;
+  intervalDays: number;
+  onClose: () => void;
+  notice?: React.ReactNode;
+}) {
   const router = useRouter();
   const clientId = useClientId();
   const [at, setAt] = useState(manilaNowLocal);
@@ -502,6 +538,7 @@ function ReplaceDialog({ row, intervalDays, onClose }: { row: TubingRowView; int
       <p className="text-[12px] text-ink-2">
         {row.patient.name} · {row.wardRoom}. Next due will be {intervalDays} days after the time you enter (current policy).
       </p>
+      {notice ? <div className="mt-3">{notice}</div> : null}
       <form
         className="mt-3 space-y-3"
         onSubmit={async (e) => {

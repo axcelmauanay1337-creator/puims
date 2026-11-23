@@ -12,9 +12,11 @@ import { SyncIndicator } from "./SyncStatus";
 export function Topbar({
   user,
   notifications,
+  shiftLabel,
 }: {
   user: { name: string; initials: string; role: Role; username: string };
   notifications: NotificationPreview[];
+  shiftLabel?: string;
 }) {
   const pathname = usePathname();
   const { setDrawerOpen } = useShellUi();
@@ -32,6 +34,9 @@ export function Topbar({
       <p className="hidden min-w-0 truncate text-[12px] text-ink-3 lg:block">
         Pulmonary Unit <span aria-hidden="true">/</span> <span className="font-semibold text-ink">{section?.label ?? "Workspace"}</span>
       </p>
+      {shiftLabel ? (
+        <span className="ml-2 hidden rounded-full bg-success-soft px-3 py-1 text-[12px] font-semibold text-success sm:inline">{shiftLabel}</span>
+      ) : null}
       <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
         <SearchButton />
         <SyncIndicator />

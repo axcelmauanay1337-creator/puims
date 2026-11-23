@@ -5,7 +5,7 @@ import { can } from "@/server/session";
 import { listPatients } from "@/server/data";
 import { guard } from "@/server/guard";
 
-export const metadata = { title: "Patient Masterlist" };
+export const metadata = { title: "Patient Master" };
 
 export default async function PatientsPage() {
   const session = await guard("patients:read");
@@ -15,9 +15,9 @@ export default async function PatientsPage() {
     <>
       <PageHeader
         eyebrow="Workspace"
-        title="Patient Masterlist"
-        crumbs={[{ label: "Workspace", href: "/" }, { label: "Patient Masterlist" }]}
-        description="Search by hospital number or name. Filtering happens on this screen only — search terms are never placed in the page address. Possible duplicates are shown for review when registering; records are never merged automatically."
+        title="Patient Master"
+        crumbs={[{ label: "Workspace", href: "/" }, { label: "Patient Master" }]}
+        description="Register a patient once. Hook-in, neb orders, HFNC/NIV and test bookings pick the patient from here — no retyping. Precautions, special endorsements and the patient's own supplies show on every task for that patient."
         actions={
           can(session, "patients:write") ? (
             <ButtonLink href="/patients/new" variant="primary">

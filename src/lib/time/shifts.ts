@@ -20,9 +20,9 @@ export const SHIFT_ORDER: readonly ShiftCode[] = ["MORNING", "AFTERNOON", "NIGHT
 export const OPERATIONAL_DAY_START_HOUR = 6;
 
 export const SHIFT_DEFINITIONS: Record<ShiftCode, { label: string; startHour: number; endHour: number; rangeLabel: string }> = {
-  MORNING: { label: "Morning", startHour: 6, endHour: 14, rangeLabel: "06:00–14:00" },
-  AFTERNOON: { label: "Afternoon", startHour: 14, endHour: 22, rangeLabel: "14:00–22:00" },
-  NIGHT: { label: "Night", startHour: 22, endHour: 6, rangeLabel: "22:00–06:00" },
+  MORNING: { label: "Morning", startHour: 6, endHour: 14, rangeLabel: "6:00 AM–2:00 PM" },
+  AFTERNOON: { label: "Afternoon", startHour: 14, endHour: 22, rangeLabel: "2:00 PM–10:00 PM" },
+  NIGHT: { label: "Night", startHour: 22, endHour: 6, rangeLabel: "10:00 PM–6:00 AM" },
 };
 
 export interface InstantClassification {

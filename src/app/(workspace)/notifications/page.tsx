@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { AccessDenied } from "@/components/ui/AccessDenied";
 import { Badge, Card, EmptyState, PageHeader, SyntheticDataNote } from "@/components/ui/primitives";
-import { getNotifications } from "@/server/data";
 import { guard } from "@/server/guard";
+import { getAlerts } from "@/server/workspace";
 
-export const metadata = { title: "Notifications" };
+export const metadata = { title: "Alerts" };
 
 const SEV = {
   danger: { tone: "danger", label: "Urgent", glyph: "‼" },
@@ -13,15 +13,16 @@ const SEV = {
 } as const;
 
 export default async function NotificationsPage() {
-  if (!(await guard("notifications:read"))) return <AccessDenied what="notifications" />;
-  const items = await getNotifications();
+  const session = await guard("notifications:read");
+  if (!session) return <AccessDenied what="alerts" />;
+  const items = await getAlerts(session);
   return (
     <>
       <PageHeader
-        eyebrow="System"
-        title="Notifications"
-        crumbs={[{ label: "System" }, { label: "Notifications" }]}
-        description="In-app reminders computed from current records. Notification text never contains patient names or hospital numbers, so previews on lock screens cannot leak PHI."
+        eyebrow="More"
+        title="Alerts"
+        crumbs={[{ label: "More" }, { label: "Alerts" }]}
+        description="Computed from current records: neb doses past their time, tubing past its interval, handovers not acknowledged, tests within the hour, equipment due for maintenance and no free machine. Alert text never contains patient names."
       />
       {items.length === 0 ? (
         <EmptyState title="Nothing needs attention" />
@@ -45,9 +46,6 @@ export default async function NotificationsPage() {
           </ul>
         </Card>
       )}
-      <p className="mt-3 text-[12px] text-ink-3">
-        Configurable reminder rules (Chief RT, within approved policy) and optional push delivery arrive with Milestones 4 and 7.
-      </p>
       <SyntheticDataNote />
     </>
   );

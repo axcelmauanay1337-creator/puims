@@ -61,13 +61,13 @@ const SEV: Record<NotificationPreview["severity"], { glyph: string; cls: string;
 };
 
 export function NotificationsMenu({ items }: { items: NotificationPreview[] }) {
-  const urgent = items.filter((i) => i.severity !== "info").length;
+  const urgent = items.length;
   return (
     <Popover
-      label={`Notifications, ${items.length} item${items.length === 1 ? "" : "s"}`}
+      label={`Alerts, ${items.length} item${items.length === 1 ? "" : "s"}`}
       panel={(close) => (
         <div>
-          <p className="border-b border-line px-4 py-2.5 text-[13px] font-semibold">Needs attention</p>
+          <p className="border-b border-line px-4 py-2.5 text-[13px] font-semibold">Alerts</p>
           {items.length === 0 ? (
             <p className="px-4 py-6 text-center text-[12px] text-ink-3">Nothing needs attention right now.</p>
           ) : (
@@ -88,7 +88,7 @@ export function NotificationsMenu({ items }: { items: NotificationPreview[] }) {
             </ul>
           )}
           <Link href="/notifications" onClick={close} className="block border-t border-line px-4 py-2.5 text-[12px] font-medium text-accent-ink hover:bg-hover">
-            View all notifications
+            View all alerts
           </Link>
         </div>
       )}

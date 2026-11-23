@@ -36,7 +36,7 @@ export default async function NebulizationPage() {
           </span>
         ))}
       </div>
-      <h2 className="mb-2 text-[15px] font-semibold">Worklist — this operational day (06:00–06:00)</h2>
+      <h2 className="mb-2 text-[15px] font-semibold">Worklist — this operational day (6:00 AM–6:00 AM)</h2>
       <NebWorklist rows={n.rows} me={session.staffId} isChief={session.role === "CHIEF_RT_ADMIN"} canDocument={canDocument} />
       <h2 className="mb-2 mt-8 text-[15px] font-semibold">Active orders</h2>
       {!canOrder && <p className="mb-2 text-[12px] text-ink-3">Orders are entered and discontinued by Respiratory Therapists.</p>}

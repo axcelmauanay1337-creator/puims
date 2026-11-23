@@ -16,7 +16,7 @@ test.describe("phone layout", () => {
     await bottom.getByRole("button", { name: "More" }).click();
     const drawer = page.getByRole("dialog", { name: "Navigation" });
     await expect(drawer).toBeVisible();
-    await drawer.getByRole("link", { name: "Change of Tubing" }).click();
+    await drawer.getByRole("link", { name: /Change of tubing/i }).click();
     await expect(page).toHaveURL(/\/tubing$/);
     await expect(drawer).toBeHidden();
   });
@@ -51,7 +51,7 @@ test.describe("phone layout", () => {
 
   test("touch targets in the bottom nav are at least 44px tall", async ({ page }) => {
     await page.goto("/");
-    const box = await page.getByRole("navigation", { name: "Primary (mobile)" }).getByRole("link", { name: "Overview" }).boundingBox();
+    const box = await page.getByRole("navigation", { name: "Primary (mobile)" }).getByRole("link", { name: "Today" }).boundingBox();
     expect(box!.height).toBeGreaterThanOrEqual(44);
   });
 });

@@ -109,7 +109,7 @@ test.describe("Chief RT account administration", () => {
     await rt.getByLabel("Username").fill("rt.e2e");
     await rt.getByLabel("Password").fill("blue harbor lantern morning");
     await rt.getByRole("button", { name: "Sign in" }).click();
-    await expect(rt.getByRole("heading", { name: /E2E Synthetic RT/ })).toBeVisible();
+    await expect(rt.getByTestId("operational-date")).toContainText("E2E Synthetic RT");
     await expect(rt.locator("aside[aria-label='Sidebar']:visible a[href='/staff']")).toHaveCount(0);
     await ctx.close();
   });
@@ -118,7 +118,7 @@ test.describe("Chief RT account administration", () => {
     const ctx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
     const rt = await ctx.newPage();
     await signInViaUi(rt, "rt.delta");
-    await expect(rt.locator("main h1")).toContainText("RT Delta");
+    await expect(rt.getByTestId("operational-date")).toContainText("RT Delta");
 
     await page.goto("/staff");
     page.once("dialog", (d) => d.accept());

@@ -90,7 +90,7 @@ test.describe("PFT scheduling and the PFT clinical record (RT)", () => {
 
   test("calendar view and filters use only dates and codes in the URL", async ({ page }) => {
     await page.goto("/diagnostics/pft");
-    await page.getByRole("link", { name: "Calendar" }).click();
+    await page.getByRole("link", { name: "Calendar", exact: true }).click();
     await expect(page).toHaveURL(/view=calendar/);
     expect(page.url()).not.toMatch(/SYN-|Demo/);
     await page.getByLabel("Status").selectOption("OPEN");

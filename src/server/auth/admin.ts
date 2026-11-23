@@ -133,6 +133,9 @@ export const EDITABLE_SETTINGS = {
   "tubing.upcoming_window_hours": { min: 0, max: 336, integer: true, label: "Tubing “upcoming” window (hours)" },
   "session.idle_minutes": { min: 2, max: 120, integer: true, label: "Sign-out after inactivity (minutes)" },
   "session.absolute_hours": { min: 1, max: 24, integer: true, label: "Maximum session length (hours)" },
+  "charges.ventilator_per_day": { min: 0, max: 1000000, integer: false, label: "Ventilator charge per day (₱)" },
+  "charges.hfnc_per_day": { min: 0, max: 1000000, integer: false, label: "HFNC machine charge per day (₱)" },
+  "charges.niv_per_day": { min: 0, max: 1000000, integer: false, label: "BiPAP / CPAP machine charge per day (₱)" },
 } as const;
 export type SettingKey = keyof typeof EDITABLE_SETTINGS;
 

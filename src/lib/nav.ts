@@ -13,48 +13,48 @@ export interface NavGroup {
   items: NavItem[];
 }
 
-/** Information architecture from PRODUCT_REQUIREMENTS.md §2 (+ tubing tracker, master prompt module 8). */
+/** Redesigned workspace (2026-11-23): eight primary destinations, everything else under "More". */
 export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Workspace",
     items: [
-      { href: "/", label: "Overview", icon: "overview", permission: "clinical:read", keywords: "dashboard command center home" },
-      { href: "/patients", label: "Patient Masterlist", icon: "patients", permission: "patients:read", keywords: "patient search mrn hospital number" },
-      { href: "/activities", label: "RT Daily Activities", icon: "activity", permission: "activity:read-own", keywords: "activity log workload" },
-      { href: "/handover", label: "Shift Handover", icon: "handover", permission: "shifts:read", keywords: "endorsement handoff acknowledge" },
+      { href: "/", label: "Today", icon: "today", permission: "clinical:read", keywords: "tasks due overview home dashboard" },
+      { href: "/patients", label: "Patients", icon: "patients", permission: "patients:read", keywords: "patient master search hospital number precautions" },
+      {
+        href: "/nebulization",
+        label: "Nebs",
+        icon: "nebulization",
+        permission: "clinical:read",
+        keywords: "nebulization neb treatment medication orders doses",
+      },
+      { href: "/ventilation", label: "Vents / NIV", icon: "ventilation", permission: "clinical:read", keywords: "ventilator hook-in hfnc bipap cpap niv" },
+      { href: "/schedule", label: "Schedule", icon: "schedule", permission: "clinical:read", keywords: "pft abg sputum appointments booking" },
+      { href: "/handover", label: "Handover", icon: "handover", permission: "shifts:read", keywords: "endorsement handoff acknowledge" },
+      { href: "/equipment", label: "Equipment", icon: "equipment", permission: "clinical:read", keywords: "machines ventilator hfnc bipap rental maintenance" },
+      { href: "/trends", label: "Trends", icon: "trends", permission: "clinical:read", keywords: "census monthly busiest" },
     ],
   },
   {
-    label: "Clinical services",
+    label: "More",
     items: [
-      { href: "/nebulization", label: "Nebulization", icon: "nebulization", permission: "clinical:read", keywords: "neb treatment medication administration" },
-      { href: "/ventilation", label: "Mechanical Ventilation", icon: "ventilation", permission: "clinical:read", keywords: "ventilator hook-in disconnection" },
-      { href: "/tubing", label: "Change of Tubing", icon: "tubing", permission: "clinical:read", keywords: "change of tubing circuit replacement due overdue" },
-    ],
-  },
-  {
-    label: "Diagnostics",
-    items: [
-      { href: "/diagnostics/pft", label: "PFT Scheduling", icon: "pft", permission: "clinical:read", keywords: "pulmonary function test spirometry" },
+      { href: "/tubing", label: "Change of tubing", icon: "tubing", permission: "clinical:read", keywords: "circuit replacement due overdue" },
+      { href: "/diagnostics/pft", label: "PFT calendar", icon: "pft", permission: "clinical:read", keywords: "pulmonary function test spirometry" },
       { href: "/diagnostics/abg", label: "ABG", icon: "abg", permission: "clinical:read", keywords: "arterial blood gas" },
-      { href: "/diagnostics/sputum", label: "Sputum Induction", icon: "sputum", permission: "clinical:read", keywords: "sputum" },
+      { href: "/diagnostics/sputum", label: "Sputum induction", icon: "sputum", permission: "clinical:read", keywords: "sputum" },
+      { href: "/shifts", label: "Roster", icon: "shifts", permission: "shifts:read", keywords: "shift schedule assignment" },
+      { href: "/activities", label: "My activity", icon: "activity", permission: "activity:read-own", keywords: "activity log workload" },
+      { href: "/notifications", label: "Alerts", icon: "bell", permission: "notifications:read", keywords: "alerts reminders overdue" },
     ],
   },
   {
-    label: "Management",
+    label: "Admin & settings",
     items: [
-      { href: "/shifts", label: "Shift Management", icon: "shifts", permission: "shifts:read", keywords: "roster schedule assignment" },
+      { href: "/charges", label: "Charges", icon: "charges", permission: "reports:unit", keywords: "billing machine rental" },
+      { href: "/reports", label: "Reports", icon: "reports", permission: "reports:unit", keywords: "census trends export" },
       { href: "/staff", label: "RT Staff", icon: "staff", permission: "staff:manage", keywords: "users accounts invite deactivate" },
-      { href: "/reports", label: "Reports & Analytics", icon: "reports", permission: "reports:unit", keywords: "census trends monthly" },
-      { href: "/import", label: "Import Center", icon: "import", permission: "import:manage", keywords: "legacy workbook spreadsheet" },
-    ],
-  },
-  {
-    label: "System",
-    items: [
-      { href: "/notifications", label: "Notifications", icon: "bell", permission: "notifications:read", keywords: "alerts reminders" },
-      { href: "/audit", label: "Audit Logs", icon: "audit", permission: "audit:read", keywords: "history trail" },
-      { href: "/settings", label: "Settings", icon: "settings", permission: "settings:read", keywords: "configuration tubing interval" },
+      { href: "/import", label: "Import workbook", icon: "import", permission: "import:manage", keywords: "legacy workbook spreadsheet" },
+      { href: "/audit", label: "Audit log", icon: "audit", permission: "audit:read", keywords: "history trail" },
+      { href: "/settings", label: "Settings", icon: "settings", permission: "settings:read", keywords: "configuration tubing interval prices" },
       { href: "/devices", label: "Devices & Sync", icon: "devices", permission: "devices:read-own", keywords: "offline sync device revoke" },
     ],
   },

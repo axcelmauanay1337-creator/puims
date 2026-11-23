@@ -63,9 +63,8 @@ test.describe("server-side authorization (RT role)", () => {
     await page.goto("/");
     const sidebar = page.locator("aside[aria-label='Sidebar']:visible");
     for (const r of CHIEF_ONLY) await expect(sidebar.locator(`a[href='${r}']`)).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), RT Bravo/ })).toBeVisible();
-    // Unit KPI cards are Chief-only.
-    await expect(page.getByText("Unique patients served")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
+    await expect(page.getByTestId("operational-date")).toContainText("RT Bravo");
   });
 
   test("RT activity is scoped to their own events", async ({ page }) => {
@@ -99,7 +98,7 @@ test.describe("global search", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /search \(ctrl\+k\)/i }).click();
     await page.getByRole("combobox").fill("tubing");
-    await page.getByRole("option", { name: /Change of Tubing/ }).click();
+    await page.getByRole("option", { name: /Change of tubing/i }).click();
     await expect(page).toHaveURL(/\/tubing$/);
   });
 

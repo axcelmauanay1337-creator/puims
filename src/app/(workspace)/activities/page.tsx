@@ -15,7 +15,7 @@ export default async function ActivitiesPage() {
   return (
     <>
       <PageHeader
-        eyebrow={`Operational day · ${formatLongDate(a.operationalDate)} (06:00–06:00)`}
+        eyebrow={`Operational day · ${formatLongDate(a.operationalDate)} (6:00 AM–6:00 AM)`}
         title={unit ? "RT Daily Activities" : "My Daily Activities"}
         crumbs={[{ label: "Workspace", href: "/" }, { label: "RT Daily Activities" }]}
         description={

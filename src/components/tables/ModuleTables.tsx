@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Badge, StatusBadge } from "@/components/ui/primitives";
+import { FlagChips } from "@/components/workspace/Flags";
+import type { OwnSupply, Precaution } from "@/lib/clinical/flags";
 
 import { SERVICE_LABELS, type ServiceType } from "@/lib/clinical/vocabulary";
 import { SHIFT_DEFINITIONS, type ShiftCode } from "@/lib/time/shifts";
@@ -54,6 +56,10 @@ export interface PatientRow {
   wardRoom: string | null;
   provenance: string;
   lastServiceIso: string | null;
+  precautions: Precaution[];
+  ownSupplies: OwnSupply[];
+  endorsement: string | null;
+  active: string[];
 }
 
 export function PatientsTable({ rows }: { rows: PatientRow[] }) {
@@ -72,8 +78,16 @@ export function PatientsTable({ rows }: { rows: PatientRow[] }) {
       key: "name",
       header: "Name",
       cell: (r) => (
-        <Link href={`/patients/${r.id}`} className="font-medium hover:underline">
-          {r.name}
+        <Link href={`/patients/${r.id}`} className="block min-w-0">
+          <span className="block font-medium hover:underline">{r.name}</span>
+          <span className="mt-1 flex flex-wrap gap-1">
+            <FlagChips flags={r} />
+            {r.active.map((a) => (
+              <span key={a} className="rounded-full bg-neutral-soft px-2 py-0.5 text-[11px] font-semibold text-ink-2">
+                {a}
+              </span>
+            ))}
+          </span>
         </Link>
       ),
       sort: (r) => r.name,
@@ -105,7 +119,7 @@ export function PatientsTable({ rows }: { rows: PatientRow[] }) {
       rowKey={(r) => r.id}
       caption="Patient masterlist"
       searchPlaceholder="Hospital no. or name"
-      searchText={(r) => `${r.hospitalId} ${r.name}`}
+      searchText={(r) => `${r.hospitalId} ${r.name} ${r.wardRoom ?? ""}`}
       filters={[
         {
           key: "cat",

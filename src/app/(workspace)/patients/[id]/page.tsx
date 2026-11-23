@@ -3,9 +3,11 @@ import { notFound } from "next/navigation";
 import { AccessDenied } from "@/components/ui/AccessDenied";
 import { Badge, ButtonLink, Card, CardHeader, EmptyState, PageHeader, ShiftBadge, StatusBadge, SyntheticDataNote } from "@/components/ui/primitives";
 import { SERVICE_LABELS } from "@/lib/clinical/vocabulary";
-import { formatDateTime, formatShortDate } from "@/lib/time/zoned";
+import { formatClock, formatDateTime, formatShortDate } from "@/lib/time/zoned";
 import { getPatientRevisions } from "@/server/clinical";
 import { getPatientProfile } from "@/server/data";
+import { availableUnits } from "@/server/workspace";
+import { PatientFlagsCard, PatientQuickActions } from "@/components/workspace/PatientPanels";
 import { guard } from "@/server/guard";
 import { can } from "@/server/session";
 
@@ -23,6 +25,8 @@ export default async function PatientProfilePage({ params }: PageProps<"/patient
   if (!profile) notFound();
   const { patient: p } = profile;
   const revisions = await getPatientRevisions(session, id);
+  const [hfnc, bipap] = await Promise.all([availableUnits(session, "HFNC"), availableUnits(session, "BIPAP")]);
+  const flags = { precautions: p.precautions, ownSupplies: p.ownSupplies, endorsement: p.endorsement };
   const FIELD: Record<string, string> = {
     full_name: "Name",
     hospital_patient_id: "Hospital no.",
@@ -38,9 +42,19 @@ export default async function PatientProfilePage({ params }: PageProps<"/patient
     <>
       <PageHeader
         title={p.fullName}
-        crumbs={[{ label: "Patient Masterlist", href: "/patients" }, { label: "Patient profile" }]}
+        crumbs={[{ label: "Patient Master", href: "/patients" }, { label: "Patient profile" }]}
         actions={can(session, "patients:write") ? <ButtonLink href={`/patients/${p.id}/edit`}>Correct details</ButtonLink> : undefined}
       />
+
+      <PatientQuickActions
+        patient={{ id: p.id, title: p.fullName, subtitle: `${p.hospitalPatientId}${p.wardRoom ? ` · ${p.wardRoom}` : ""}`, wardRoom: p.wardRoom }}
+        canDocument={can(session, "clinical:document")}
+        canOrder={can(session, "orders:enter")}
+        canSchedule={can(session, "diagnostics:schedule")}
+        nivUnits={[...hfnc.map((u) => ({ ...u, kind: "HFNC" as const })), ...bipap.map((u) => ({ ...u, kind: "BIPAP" as const }))]}
+        flags={flags}
+      />
+      <PatientFlagsCard patientId={p.id} flags={flags} canEdit={can(session, "patients:write")} />
 
       <Card className="mb-4" aria-labelledby="id-h">
         <h2 id="id-h" className="sr-only">
@@ -96,8 +110,8 @@ export default async function PatientProfilePage({ params }: PageProps<"/patient
               {profile.nebOrders.map((o) => (
                 <li key={o.id} className="py-2">
                   <b className="block text-[13px]">{o.orderReference}</b>
-                  {o.medication} · <Badge>{o.frequency}</Badge> · {o.prescribedTimes.length ? o.prescribedTimes.join(", ") : "no scheduled times on order"} ·{" "}
-                  {o.prescriber}
+                  {o.medication} · <Badge>{o.frequency}</Badge> ·{" "}
+                  {o.prescribedTimes.length ? o.prescribedTimes.map(formatClock).join(", ") : "no scheduled times on order"} · {o.prescriber}
                 </li>
               ))}
             </ul>

@@ -38,6 +38,10 @@ export const ALL_ROUTES = [
   "/audit",
   "/settings",
   "/devices",
+  "/schedule",
+  "/equipment",
+  "/trends",
+  "/charges",
 ];
 
-export const CHIEF_ONLY = ["/staff", "/reports", "/import", "/audit"];
+export const CHIEF_ONLY = ["/staff", "/reports", "/import", "/audit", "/charges"];

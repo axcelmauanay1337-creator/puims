@@ -37,7 +37,7 @@ export function SettingsForm({ settings }: { settings: EditableSetting[] }) {
                 <input
                   name="value"
                   type="number"
-                  step={1}
+                  step="any"
                   min={s.min}
                   max={s.max}
                   defaultValue={s.value}

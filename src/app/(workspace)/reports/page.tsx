@@ -54,7 +54,7 @@ export default async function ReportsPage({ searchParams }: PageProps<"/reports"
         eyebrow="Management"
         title="Reports & Analytics"
         crumbs={[{ label: "Management" }, { label: "Reports & Analytics" }]}
-        description="Computed from documented events only, in Asia/Manila. Operational days run 06:00–06:00; calendar days 00:00–24:00. Every figure has a definition below."
+        description="Computed from documented events only, in Asia/Manila. Operational days run 6:00 AM–6:00 AM; calendar days midnight to midnight. Every figure has a definition below."
         actions={<PrintButton label="Print report" />}
       />
 
@@ -76,7 +76,7 @@ export default async function ReportsPage({ searchParams }: PageProps<"/reports"
         <label className="text-[12px] text-ink-3">
           <span className="mb-1 block">Days counted as</span>
           <select name="mode" defaultValue={mode} className={sel}>
-            <option value="operational">Operational days (06:00–06:00)</option>
+            <option value="operational">Operational days (6:00 AM–6:00 AM)</option>
             <option value="calendar">Calendar days (00:00–24:00)</option>
           </select>
         </label>

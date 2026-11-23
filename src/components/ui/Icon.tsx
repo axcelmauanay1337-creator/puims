@@ -1,6 +1,11 @@
 /** Minimal inline stroke icon set (no third-party icon dependency). */
 const PATHS: Record<string, string> = {
   overview: "M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z",
+  today: "M9 11l2 2 4-4M5 4h14v16H5zM9 2v4M15 2v4",
+  schedule: "M4 6h16v14H4zM4 10h16M8 3v4M16 3v4M8 14h3M8 17h3",
+  equipment: "M4 7h16v10H4zM8 17v3M16 17v3M8 11h3M14 11h2",
+  trends: "M4 20V4M4 20h16M7 16l4-5 3 3 5-7",
+  charges: "M6 4h9a3 3 0 0 1 0 6H9M6 4v16M6 10h9M4 7h10",
   patients: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0",
   activity: "M3 12h4l3-8 4 16 3-8h4",
   handover: "M7 7h11l-3-3M17 17H6l3 3",

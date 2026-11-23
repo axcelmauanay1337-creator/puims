@@ -3,6 +3,7 @@ import type { Permission } from "@/lib/authz/permissions";
 import { assessFromDue, DEFAULT_TUBING_POLICY, type TubingPolicy, type TubingStatus } from "@/lib/clinical/tubing";
 import { SERVICE_LABELS, type DiagnosticService, type DiagnosticStatus, type PatientCategory, type ServiceType } from "@/lib/clinical/vocabulary";
 import type { ActivityEvent, HandoverItemRef } from "@/lib/domain/types";
+import type { OwnSupply, Precaution } from "@/lib/clinical/flags";
 import type { VentSettingView } from "@/components/tables/ModuleTables";
 import { COMPLETED_ACTIVITY_STATUSES, countBy, eventsByShift, serviceCounts, uniquePatientsServed, type Window } from "@/lib/metrics/metrics";
 import { SHIFT_ORDER, classifyInstant, operationalDayWindow, shiftWindow, type ShiftCode } from "@/lib/time/shifts";
@@ -210,7 +211,11 @@ export async function listVentilation() {
         atIso: iso(x.recorded_at)!,
         mode: x.mode,
         modeOther: x.mode_other,
-        values: Object.fromEntries(Object.entries(x.v).filter(([, val]) => val !== null).map(([k, val]) => [k, Number(val)])),
+        values: Object.fromEntries(
+          Object.entries(x.v)
+            .filter(([, val]) => val !== null)
+            .map(([k, val]) => [k, Number(val)]),
+        ),
         note: x.note,
         by: x.by ?? "—",
         byId: x.by_id,
@@ -420,8 +425,20 @@ export async function listPatients() {
       ward_room: string | null;
       provenance: string;
       last_service: Date | null;
+      precautions: Precaution[];
+      own_supplies: OwnSupply[];
+      special_endorsement: string | null;
+      on_vent: boolean;
+      niv: string | null;
+      neb_freqs: string[] | null;
+      tests: number;
     }>(
-      `SELECT p.id, p.hospital_patient_id, p.full_name, p.date_of_birth, p.sex, p.category, p.ward_room, p.provenance, ls.last_service
+      `SELECT p.id, p.hospital_patient_id, p.full_name, p.date_of_birth, p.sex, p.category, p.ward_room, p.provenance, ls.last_service,
+              p.precautions, p.own_supplies, p.special_endorsement,
+              EXISTS (SELECT 1 FROM vent_encounter v WHERE v.patient_id = p.id AND v.disconnected_at IS NULL) AS on_vent,
+              (SELECT n.device FROM niv_encounter n WHERE n.patient_id = p.id AND n.ended_at IS NULL LIMIT 1) AS niv,
+              (SELECT array_agg(o.frequency) FROM neb_order o WHERE o.patient_id = p.id AND o.discontinued_at IS NULL AND (o.end_at IS NULL OR o.end_at > $1)) AS neb_freqs,
+              (SELECT count(*)::int FROM diagnostic_appointment d WHERE d.patient_id = p.id AND d.voided_at IS NULL AND d.status IN ('SCHEDULED','PENDING') AND d.scheduled_at >= $1 - interval '12 hours') AS tests
          FROM patient p
          LEFT JOIN (SELECT patient_id, max(occurred_at) AS last_service FROM service_event_v WHERE occurred_at <= $1 GROUP BY patient_id) ls ON ls.patient_id = p.id
         WHERE p.voided_at IS NULL ORDER BY p.full_name`,
@@ -438,6 +455,15 @@ export async function listPatients() {
       wardRoom: p.ward_room,
       provenance: p.provenance === "IMPORT" ? "IMPORT" : "MANUAL",
       lastServiceIso: iso(p.last_service),
+      precautions: p.precautions,
+      ownSupplies: p.own_supplies,
+      endorsement: p.special_endorsement,
+      active: [
+        ...(p.on_vent ? ["Ventilator"] : []),
+        ...(p.niv ? [p.niv === "BIPAP" ? "BiPAP" : p.niv] : []),
+        ...(p.neb_freqs ?? []).map((f) => `Neb ${f}`),
+        ...(p.tests ? [`${p.tests} test(s) booked`] : []),
+      ],
     }));
   });
 }
@@ -455,8 +481,11 @@ export async function getPatientProfile(id: string) {
       provenance: string;
       created_at: Date;
       updated_at: Date;
+      precautions: Precaution[];
+      own_supplies: OwnSupply[];
+      special_endorsement: string | null;
     }>(
-      "SELECT id, hospital_patient_id, full_name, date_of_birth, sex, category, ward_room, provenance, created_at, updated_at FROM patient WHERE id = $1 AND voided_at IS NULL",
+      "SELECT id, hospital_patient_id, full_name, date_of_birth, sex, category, ward_room, provenance, created_at, updated_at, precautions, own_supplies, special_endorsement FROM patient WHERE id = $1 AND voided_at IS NULL",
       [id],
     );
     const p = pr.rows[0];
@@ -511,6 +540,9 @@ export async function getPatientProfile(id: string) {
         createdAt: iso(p.created_at)!,
         updatedAt: iso(p.updated_at)!,
         age: ageFrom(p.date_of_birth, now),
+        precautions: p.precautions,
+        ownSupplies: p.own_supplies,
+        endorsement: p.special_endorsement,
       },
       encounters: enc.rows.map((e) => ({
         id: e.id,

@@ -29,6 +29,9 @@ if (!password || password.length < 12) throw new Error("PUIMS_SEED_PASSWORD must
 if (!process.env.PUIMS_DATA_KEY) throw new Error("PUIMS_DATA_KEY must be set");
 
 const TABLES = [
+  "charge_post",
+  "niv_encounter",
+  "equipment",
   "sync_event",
   "offline_lease",
   "pft_form_amendment",
@@ -88,7 +91,10 @@ async function main() {
          ('tubing.interval_days', '7', 'Change of tubing (ventilator circuit) interval in calendar days (policy-pending, U-04)'),
          ('tubing.upcoming_window_hours', '48', 'Hours before due at which tubing is flagged upcoming (policy-pending, U-04)'),
          ('session.idle_minutes', '15', 'Sign-out after this many minutes without activity (U-14)'),
-         ('session.absolute_hours', '12', 'Maximum session length regardless of activity')
+         ('session.absolute_hours', '12', 'Maximum session length regardless of activity'),
+         ('charges.ventilator_per_day', '5500', 'Ventilator charge per patient per day, ₱ (synthetic)'),
+         ('charges.hfnc_per_day', '4500', 'HFNC machine charge per patient per day, ₱ (synthetic)'),
+         ('charges.niv_per_day', '3500', 'BiPAP / CPAP machine charge per patient per day, ₱ (synthetic)')
        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, description = EXCLUDED.description, updated_by = NULL, updated_at = now()`,
     );
 
@@ -276,6 +282,47 @@ async function main() {
       { kind: "PULMONOLOGIST", display_name: "Dr. Demo Pulmonologist A", credentials: "SYN-LIC-MD-0001", staff_id: null, created_by: chief.id },
       { kind: "PULMONOLOGIST", display_name: "Dr. Demo Pulmonologist B", credentials: "SYN-LIC-MD-0002", staff_id: null, created_by: chief.id },
     ]);
+    // Redesign (0016): synthetic equipment board, HFNC/NIV and patient flags --------------
+    const rt = (await c.query<{ id: string }>("SELECT id FROM staff WHERE role = 'RESPIRATORY_THERAPIST' AND status = 'ACTIVE' ORDER BY username LIMIT 1"))
+      .rows[0];
+    await c.query(
+      `INSERT INTO equipment (code, kind, model, pm_due_on, rented_from, rented_since, rental_rate, created_by, updated_by) VALUES
+         ('VENT-01', 'VENTILATOR', 'Synthetic Vent A', current_date + 60, NULL, NULL, NULL, $1, $1),
+         ('VENT-02', 'VENTILATOR', 'Synthetic Vent A', current_date + 30, NULL, NULL, NULL, $1, $1),
+         ('VENT-03', 'VENTILATOR', 'Synthetic Vent B', current_date - 1, NULL, NULL, NULL, $1, $1),
+         ('RENT-01', 'VENTILATOR', 'Synthetic Vent A', NULL, 'Demo Medical Supply (SYN)', current_date - 3, 6000, $1, $1),
+         ('HF-01', 'HFNC', 'Synthetic HFNC', current_date + 90, NULL, NULL, NULL, $1, $1),
+         ('HF-02', 'HFNC', 'Synthetic HFNC', current_date + 90, NULL, NULL, NULL, $1, $1),
+         ('BP-01', 'BIPAP', 'Synthetic BiPAP', current_date + 45, NULL, NULL, NULL, $1, $1),
+         ('BP-02', 'BIPAP', 'Synthetic BiPAP', current_date + 45, NULL, NULL, NULL, $1, $1)`,
+      [chief.id],
+    );
+    const free = (
+      await c.query<{ id: string; ward_room: string | null }>(
+        `SELECT p.id, p.ward_room FROM patient p WHERE p.category = 'INP' AND p.voided_at IS NULL
+            AND NOT EXISTS (SELECT 1 FROM vent_encounter v WHERE v.patient_id = p.id AND v.disconnected_at IS NULL) ORDER BY p.full_name LIMIT 4`,
+      )
+    ).rows;
+    if (rt && free.length >= 2) {
+      await c.query(
+        `INSERT INTO niv_encounter (patient_id, device, setting, spo2_target, equipment_id, ward_room, started_at, started_by)
+         VALUES ($1, 'HFNC', '40 L/min · FiO₂ 35%', '92–96%', (SELECT id FROM equipment WHERE code = 'HF-01'), $2, now() - interval '20 hours', $5),
+                ($3, 'BIPAP', 'IPAP 14 · EPAP 6 · FiO₂ 40%', '88–92%', (SELECT id FROM equipment WHERE code = 'BP-02'), $4, now() - interval '9 hours', $5)`,
+        [free[0].id, free[0].ward_room, free[1].id, free[1].ward_room, rt.id],
+      );
+    }
+    const flagged = (await c.query<{ id: string }>("SELECT id FROM patient WHERE voided_at IS NULL ORDER BY full_name LIMIT 3")).rows;
+    if (flagged.length === 3) {
+      await c.query(
+        `UPDATE patient SET precautions = '{CONTACT}', special_endorsement = 'Desaturates on suctioning: pre-oxygenate first (synthetic).', updated_by = $2 WHERE id = $1`,
+        [flagged[0].id, chief.id],
+      );
+      await c.query("UPDATE patient SET precautions = '{AIRBORNE}', own_supplies = '{OWN_MEDICATION}', updated_by = $2 WHERE id = $1", [
+        flagged[1].id,
+        chief.id,
+      ]);
+      await c.query("UPDATE patient SET own_supplies = '{OWN_MESH_NEBULIZER,OWN_MEDICATION}', updated_by = $2 WHERE id = $1", [flagged[2].id, chief.id]);
+    }
     await c.query("COMMIT");
     const file = test ? ".seed-credentials.test.json" : ".seed-credentials.json";
     writeFileSync(

@@ -7,6 +7,40 @@ import { Icon } from "@/components/ui/Icon";
 import { isActive, type NavGroup } from "@/lib/nav";
 import { useShellUi } from "./ShellUi";
 
+/** Tablet rail (as in the design canvas): the primary destinations with labels, then "More". */
+function RailList({ groups }: { groups: NavGroup[] }) {
+  const pathname = usePathname();
+  const { setDrawerOpen } = useShellUi();
+  return (
+    <nav aria-label="Main" className="flex flex-1 flex-col items-center gap-1 overflow-y-auto px-1.5 pb-3">
+      {groups[0]?.items.map((item) => {
+        const active = isActive(pathname, item.href);
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            aria-current={active ? "page" : undefined}
+            className={`flex min-h-14 w-full flex-col items-center justify-center gap-1 rounded-[12px] px-1 text-center text-[11px] font-semibold leading-tight ${
+              active ? "bg-accent-soft text-accent-ink" : "text-ink-2 hover:bg-hover"
+            }`}
+          >
+            <Icon name={item.icon} size={20} />
+            {item.label}
+          </Link>
+        );
+      })}
+      <button
+        type="button"
+        onClick={() => setDrawerOpen(true)}
+        className="mt-auto flex min-h-14 w-full flex-col items-center justify-center gap-1 rounded-[12px] text-[11px] font-semibold text-ink-2 hover:bg-hover"
+      >
+        <Icon name="more" size={20} />
+        More
+      </button>
+    </nav>
+  );
+}
+
 function NavList({ groups, compact, onNavigate }: { groups: NavGroup[]; compact: boolean; onNavigate?: () => void }) {
   const pathname = usePathname();
   return (
@@ -59,16 +93,12 @@ function Brand({ compact }: { compact: boolean }) {
 export function Sidebar({ groups, nonClinical }: { groups: NavGroup[]; nonClinical: boolean }) {
   return (
     <>
-      <aside className="no-print sticky top-0 hidden h-dvh w-16 shrink-0 flex-col border-r border-line bg-sidebar md:flex lg:hidden" aria-label="Sidebar">
+      <aside className="no-print sticky top-0 hidden h-dvh w-24 shrink-0 flex-col border-r border-line bg-sidebar md:flex lg:hidden" aria-label="Sidebar">
         <Brand compact />
-        <NavList groups={groups} compact />
+        <RailList groups={groups} />
       </aside>
       <aside className="no-print sticky top-0 hidden h-dvh w-[248px] shrink-0 flex-col border-r border-line bg-sidebar lg:flex" aria-label="Sidebar">
         <Brand compact={false} />
-        <div className="mx-3 mb-3 rounded-[var(--radius-control)] bg-[#f3f4f1] px-3 py-2 text-[12px] text-ink-2">
-          <b className="block text-ink">Clinical workspace</b>
-          Respiratory Therapy
-        </div>
         <NavList groups={groups} compact={false} />
         {nonClinical && <p className="border-t border-line px-4 py-3 text-[11px] text-ink-3">Not validated for clinical use · Synthetic data</p>}
       </aside>
@@ -99,7 +129,7 @@ function MobileDrawer({ groups }: { groups: NavGroup[] }) {
 
   if (!drawerOpen) return null;
   return (
-    <div className="fixed inset-0 z-50 md:hidden">
+    <div className="fixed inset-0 z-50 lg:hidden">
       <button type="button" aria-label="Close navigation" className="absolute inset-0 bg-[#161a1680]" onClick={() => setDrawerOpen(false)} />
       <div
         ref={panelRef}
@@ -131,10 +161,10 @@ export function MobileBottomNav({ groups }: { groups: NavGroup[] }) {
   const { setDrawerOpen } = useShellUi();
   const allowed = new Set(groups.flatMap((g) => g.items.map((i) => i.href)));
   const primary = [
-    { href: "/", label: "Overview", icon: "overview" },
+    { href: "/", label: "Today", icon: "today" },
     { href: "/patients", label: "Patients", icon: "patients" },
-    { href: "/nebulization", label: "Neb", icon: "nebulization" },
-    { href: "/handover", label: "Handover", icon: "handover" },
+    { href: "/nebulization", label: "Nebs", icon: "nebulization" },
+    { href: "/ventilation", label: "Vents", icon: "ventilation" },
   ].filter((p) => allowed.has(p.href));
   return (
     <nav

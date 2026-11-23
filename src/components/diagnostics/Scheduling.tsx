@@ -68,12 +68,20 @@ function ProcedureField({ service, value, onChange }: { service: DiagnosticServi
 
 // ---------------------------------------------------------------- booking
 
-export function BookAppointmentButton({ service, patient }: { service: DiagnosticService; patient?: { id: string; title: string; subtitle: string } }) {
+export function BookAppointmentButton({
+  service,
+  patient,
+  label = "Book appointment",
+}: {
+  service: DiagnosticService;
+  patient?: { id: string; title: string; subtitle: string };
+  label?: string;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <>
       <button type="button" className={btnPrimary} onClick={() => setOpen(true)}>
-        Book appointment
+        {label}
       </button>
       {open ? <BookDialog service={service} patient={patient} onClose={() => setOpen(false)} /> : null}
     </>
@@ -94,7 +102,8 @@ function BookDialog({
   const [patient, setPatient] = useState(initial ?? null);
   const [at, setAt] = useState(() => manilaNowLocal().slice(0, 11) + "08:00");
   const [procedure, setProcedure] = useState<string>(PROCEDURE_OPTIONS[service][0]);
-  const [category, setCategory] = useState<PatientCategory>("OPD");
+  // Scheduling does not focus on OPD/INP (product owner, 2026-11-23): optional, defaults to "not stated".
+  const [category, setCategory] = useState<PatientCategory>("OTHER");
   const [physician, setPhysician] = useState("");
   const [remarks, setRemarks] = useState("");
   const [payment, setPayment] = useState("");
@@ -132,16 +141,14 @@ function BookDialog({
         <PatientPicker value={patient} onChange={setPatient} />
         <ManilaDateTime label="Date and time" value={at} onChange={setAt} required />
         <ProcedureField service={service} value={procedure} onChange={setProcedure} />
-        <fieldset>
-          <legend className={labelCls}>OPD / INP</legend>
-          <div className="mt-1 flex gap-2">
-            {(["OPD", "INP", "OTHER"] as const).map((c) => (
-              <label key={c} className="flex min-h-10 items-center gap-1.5 rounded-[7px] border border-line px-3 text-[13px]">
-                <input type="radio" name="cat" checked={category === c} onChange={() => setCategory(c)} /> {c === "OTHER" ? "Other / not stated" : c}
-              </label>
-            ))}
-          </div>
-        </fieldset>
+        <label className={labelCls}>
+          OPD / INP <span className="font-normal text-ink-3">(optional)</span>
+          <select className={inputCls} value={category} onChange={(e) => setCategory(e.target.value as PatientCategory)}>
+            <option value="OTHER">Not stated</option>
+            <option value="OPD">OPD</option>
+            <option value="INP">INP</option>
+          </select>
+        </label>
         <label className={labelCls}>
           Requesting physician
           <input className={inputCls} value={physician} onChange={(e) => setPhysician(e.target.value)} maxLength={120} />

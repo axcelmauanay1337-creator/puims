@@ -1,5 +1,6 @@
 import "server-only";
 import { expectedSlots, orderEnd } from "@/lib/clinical/nebSlots";
+import type { OwnSupply, Precaution } from "@/lib/clinical/flags";
 import type { NebulizationStatus, PatientCategory } from "@/lib/clinical/vocabulary";
 import type { Tx } from "./db";
 
@@ -24,7 +25,16 @@ export interface NebRow {
   performedBy: string | null;
   performedById: string | null;
   reason: string | null;
-  patient: { id: string; name: string; hospitalId: string; category: PatientCategory; wardRoom: string | null };
+  patient: {
+    id: string;
+    name: string;
+    hospitalId: string;
+    category: PatientCategory;
+    wardRoom: string | null;
+    precautions: Precaution[];
+    ownSupplies: OwnSupply[];
+    endorsement: string | null;
+  };
 }
 
 interface OrderRow {
@@ -42,13 +52,16 @@ interface OrderRow {
   p_hid: string | null;
   p_cat: PatientCategory;
   p_ward: string | null;
+  p_prec: Precaution[];
+  p_own: OwnSupply[];
+  p_end: string | null;
 }
 
 export async function nebRows(c: Tx, window: { start: Date; end: Date }, now: Date): Promise<NebRow[]> {
   const orders = await c.query<OrderRow>(
     `SELECT o.id, o.order_reference, o.medication_as_ordered AS medication, o.frequency, o.prescriber, o.prescribed_times::text[] AS prescribed_times,
             o.start_at, o.end_at, o.discontinued_at,
-            p.id AS p_id, p.full_name AS p_name, p.hospital_patient_id AS p_hid, p.category AS p_cat, p.ward_room AS p_ward
+            p.id AS p_id, p.full_name AS p_name, p.hospital_patient_id AS p_hid, p.category AS p_cat, p.ward_room AS p_ward, p.precautions AS p_prec, p.own_supplies AS p_own, p.special_endorsement AS p_end
        FROM neb_order o JOIN patient p ON p.id = o.patient_id
       WHERE p.voided_at IS NULL AND o.start_at < $2
         AND coalesce(least(o.end_at, o.discontinued_at), o.end_at, o.discontinued_at, 'infinity'::timestamptz) > $1`,
@@ -72,21 +85,36 @@ export async function nebRows(c: Tx, window: { start: Date; end: Date }, now: Da
     p_hid: string | null;
     p_cat: PatientCategory;
     p_ward: string | null;
+    p_prec: Precaution[];
+    p_own: OwnSupply[];
+    p_end: string | null;
   }>(
     `SELECT a.id, a.order_id, a.scheduled_at, a.actual_at, a.status, a.performed_by, st.display_name AS by_name, a.reason,
             o.order_reference, o.medication_as_ordered AS medication, o.frequency, o.prescriber,
-            p.id AS p_id, p.full_name AS p_name, p.hospital_patient_id AS p_hid, p.category AS p_cat, p.ward_room AS p_ward
+            p.id AS p_id, p.full_name AS p_name, p.hospital_patient_id AS p_hid, p.category AS p_cat, p.ward_room AS p_ward, p.precautions AS p_prec, p.own_supplies AS p_own, p.special_endorsement AS p_end
        FROM neb_administration a JOIN neb_order o ON o.id = a.order_id JOIN patient p ON p.id = a.patient_id
        LEFT JOIN staff st ON st.id = a.performed_by
       WHERE a.voided_at IS NULL AND coalesce(a.scheduled_at, a.actual_at) >= $1 AND coalesce(a.scheduled_at, a.actual_at) < $2`,
     [window.start, window.end],
   );
-  const patient = (r: { p_id: string; p_name: string; p_hid: string | null; p_cat: PatientCategory; p_ward: string | null }) => ({
+  const patient = (r: {
+    p_id: string;
+    p_name: string;
+    p_hid: string | null;
+    p_cat: PatientCategory;
+    p_ward: string | null;
+    p_prec: Precaution[];
+    p_own: OwnSupply[];
+    p_end: string | null;
+  }) => ({
     id: r.p_id,
     name: r.p_name,
     hospitalId: r.p_hid ?? "No hospital no.",
     category: r.p_cat,
     wardRoom: r.p_ward,
+    precautions: r.p_prec ?? [],
+    ownSupplies: r.p_own ?? [],
+    endorsement: r.p_end,
   });
   const rows: NebRow[] = docs.rows.map((d) => ({
     key: d.id,

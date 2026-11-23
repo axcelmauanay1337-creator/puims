@@ -71,7 +71,7 @@ export default async function SettingsPage() {
           <CardHeader id="time-h" title="Time & shifts" />
           <dl className="space-y-2 text-[13px]">
             <Row k="Hospital timezone" v={<code>{HOSPITAL_TZ}</code>} />
-            <Row k="Operational day" v="06:00 → 06:00 next day" />
+            <Row k="Operational day" v="6:00 AM → 6:00 AM next day" />
             <Row
               k="Shifts"
               v={
