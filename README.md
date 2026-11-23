@@ -1,6 +1,6 @@
 # PUIMS — Pulmonary Unit Information and Management System
 
-Notion-style clinical workspace for Respiratory Therapists: patient masterlist, shifts and handover, nebulization, mechanical ventilation, Chamfecof tubing tracking, PFT / ABG / sputum induction, reports, import, audit.
+Notion-style clinical workspace for Respiratory Therapists: patient masterlist, shifts and handover, nebulization, mechanical ventilation, change of tubing tracking, PFT / ABG / sputum induction, reports, import, audit.
 
 > **Status: Milestones 0–8 built and tested — not for clinical use.** All 16 modules work end to end on synthetic data: accounts with authenticator, row-level security, append-only audit, patients, shifts and handover, nebulization / ventilation / tubing documentation, PFT / ABG / sputum-induction scheduling, the PFT form as the official record, the workbook import wizard, reports with audited exports, and an interim offline capture design (off by default). What remains is the hospital's: approvals, real-data decisions and clinical UAT — see `docs/PRODUCTION_READINESS_CHECKLIST.md`. Do not load real patient data until hospital IT, DPO/privacy and clinical governance approve it.
 

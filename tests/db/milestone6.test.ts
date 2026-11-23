@@ -76,7 +76,7 @@ describe("period reports", () => {
     ).rows[0].id;
     for (const at of [-20, -14, -5])
       await o.query(
-        "INSERT INTO tubing_event (encounter_id, tubing_type, installed_at, interval_days, next_due_at, performed_by, reason) VALUES ($1, 'Chamfecof', $2, 7, $2, $3, 'ROUTINE')",
+        "INSERT INTO tubing_event (encounter_id, tubing_type, installed_at, interval_days, next_due_at, performed_by, reason) VALUES ($1, 'Ventilator circuit', $2, 7, $2, $3, 'ROUTINE')",
         [e, d(at), rt],
       );
     const after = (await getPeriodReport(chief, "year", "operational", today)).tubing;

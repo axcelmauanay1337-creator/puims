@@ -29,7 +29,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/nebulization", label: "Nebulization", icon: "nebulization", permission: "clinical:read", keywords: "neb treatment medication administration" },
       { href: "/ventilation", label: "Mechanical Ventilation", icon: "ventilation", permission: "clinical:read", keywords: "ventilator hook-in disconnection" },
-      { href: "/tubing", label: "Tubing Tracker", icon: "tubing", permission: "clinical:read", keywords: "chamfecof circuit replacement due overdue" },
+      { href: "/tubing", label: "Change of Tubing", icon: "tubing", permission: "clinical:read", keywords: "change of tubing circuit replacement due overdue" },
     ],
   },
   {

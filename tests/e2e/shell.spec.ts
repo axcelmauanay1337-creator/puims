@@ -99,7 +99,7 @@ test.describe("global search", () => {
     await page.goto("/");
     await page.getByRole("button", { name: /search \(ctrl\+k\)/i }).click();
     await page.getByRole("combobox").fill("tubing");
-    await page.getByRole("option", { name: /Tubing Tracker/ }).click();
+    await page.getByRole("option", { name: /Change of Tubing/ }).click();
     await expect(page).toHaveURL(/\/tubing$/);
   });
 

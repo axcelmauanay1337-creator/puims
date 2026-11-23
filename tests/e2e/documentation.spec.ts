@@ -103,17 +103,17 @@ test.describe("ventilation and tubing (RT)", () => {
     await page.getByLabel(/Ventilator identifier/).fill(vent);
     await page.getByLabel(/Ward \/ room/).fill("ICU-E2E");
     await page.getByLabel(/Hook-in time/).fill(manila(new Date(Date.now() - 60 * 60_000)).date);
-    await page.getByLabel(/new Chamfecof circuit was installed/).check();
+    await page.getByLabel(/new ventilator circuit was installed/).check();
     await page.getByRole("button", { name: "Record hook-in" }).click();
     await expect(page).toHaveURL(/\/ventilation$/);
 
     await page.goto("/tubing");
     const row = page.locator("tr").filter({ hasText: vent });
     await expect(row).toContainText("Current");
-    await row.getByRole("button", { name: "Document replacement" }).click();
+    await row.getByRole("button", { name: "Change tubing" }).click();
     const dlg = page.getByRole("dialog");
     await dlg.getByLabel(/Reason/).selectOption("Visibly soiled / contaminated");
-    await dlg.getByRole("button", { name: "Document replacement" }).click();
+    await dlg.getByRole("button", { name: "Save change of tubing" }).click();
     await row.getByText(/event\(s\)/).click();
     await expect(row).toContainText("Visibly soiled");
     await expect(row).toContainText("New circuit installed at hook-in");
@@ -121,8 +121,26 @@ test.describe("ventilation and tubing (RT)", () => {
     await page.goto("/ventilation");
     await page.getByRole("searchbox", { name: /Search Ventilator encounters/i }).fill(vent);
     const v = page.locator("tr").filter({ hasText: vent });
+    await expect(v).toContainText("No settings recorded");
+    await v.getByRole("button", { name: "Record settings" }).click();
+    const sd = page.getByRole("dialog");
+    await sd.getByLabel(/^Mode/).selectOption("VC_AC");
+    await sd.getByLabel(/FiO₂/).fill("210");
+    await sd.getByLabel(/PEEP/).fill("5");
+    await sd.getByRole("button", { name: "Save settings" }).click();
+    await expect(sd).toContainText("between 21 and 100"); // typo is stopped, nothing saved
+    await sd.getByLabel(/FiO₂/).fill("40");
+    await sd.getByLabel(/^Tidal volume/).fill("450");
+    await sd.getByLabel(/^Rate/).fill("14");
+    await sd.getByRole("button", { name: "Save settings" }).click();
+    await expect(sd).toBeHidden();
+    await expect(v).toContainText("Volume control A/C · FiO₂ 40% · PEEP 5 · Vt 450 · RR 14");
+
     await v.getByRole("button", { name: "Disconnect" }).click();
-    await page.getByRole("dialog").getByRole("button", { name: "Record disconnection" }).click();
+    const dd = page.getByRole("dialog");
+    await dd.getByLabel(/^Reason/).selectOption("EXTUBATED");
+    await dd.getByRole("button", { name: "Record disconnection" }).click();
     await expect(v).toContainText("Discontinued");
+    await expect(v).toContainText("Extubated");
   });
 });

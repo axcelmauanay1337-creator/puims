@@ -85,7 +85,7 @@ export default async function SettingsPage() {
           </dl>
         </Card>
         <Card aria-labelledby="tub-h">
-          <CardHeader id="tub-h" title="Chamfecof tubing" subtitle="Infection prevention / manufacturer confirmation required" />
+          <CardHeader id="tub-h" title="Change of tubing" subtitle="Infection prevention / manufacturer confirmation required" />
           <dl className="space-y-2 text-[13px]">
             <Row
               k="Replacement interval"

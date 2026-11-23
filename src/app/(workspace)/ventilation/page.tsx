@@ -20,10 +20,10 @@ export default async function VentilationPage() {
         eyebrow="Clinical services"
         title="Mechanical Ventilation"
         crumbs={[{ label: "Clinical services" }, { label: "Mechanical Ventilation" }]}
-        description="Ventilator encounters with hook-in and disconnection times. A patient may have several encounters; history is never overwritten."
+        description="Ventilator patients with airway, settings, hook-in and disconnection. Record settings each time you check the ventilator; history is never overwritten."
         actions={
           <>
-            <ButtonLink href="/tubing">Tubing tracker</ButtonLink>
+            <ButtonLink href="/tubing">Change of tubing</ButtonLink>
             {canDocument ? (
               <ButtonLink href="/ventilation/new" variant="primary">
                 Record hook-in
@@ -36,7 +36,7 @@ export default async function VentilationPage() {
         <MetricCard label="Active encounters" value={active} definition={METRIC_DEFINITIONS.activeVentilators} />
         <MetricCard label="Discontinued (listed)" value={rows.length - active} />
       </div>
-      <VentilationList rows={rows} canDocument={canDocument} />
+      <VentilationList rows={rows} canDocument={canDocument} me={session.staffId} isChief={session.role === "CHIEF_RT_ADMIN"} />
       <SyntheticDataNote />
     </>
   );

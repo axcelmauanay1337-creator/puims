@@ -230,7 +230,7 @@ export function generateSyntheticDataset(anchorOperationalDate: IsoDate, now: Da
         tubing.push({
           id: rng.uuid(),
           encounterId: enc.id,
-          tubingType: "Chamfecof",
+          tubingType: "Ventilator circuit",
           installedAt: iso(prior),
           performedBy: rtOnDuty(prior),
           reason: "Scheduled replacement",
@@ -240,7 +240,7 @@ export function generateSyntheticDataset(anchorOperationalDate: IsoDate, now: Da
       tubing.push({
         id: rng.uuid(),
         encounterId: enc.id,
-        tubingType: "Chamfecof",
+        tubingType: "Ventilator circuit",
         installedAt: iso(inst),
         performedBy: rtOnDuty(inst),
         reason: inst.getTime() === hooked.getTime() ? "Initial set-up at hook-in" : "Scheduled replacement",
@@ -265,7 +265,7 @@ export function generateSyntheticDataset(anchorOperationalDate: IsoDate, now: Da
     tubing.push({
       id: rng.uuid(),
       encounterId: enc.id,
-      tubingType: "Chamfecof",
+      tubingType: "Ventilator circuit",
       installedAt: iso(hooked),
       performedBy: enc.responsibleStaffId,
       reason: "Initial set-up at hook-in",

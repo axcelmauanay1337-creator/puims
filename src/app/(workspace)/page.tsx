@@ -224,7 +224,7 @@ export default async function OverviewPage() {
         <div className="flex flex-wrap gap-2">
           <ButtonLink href="/nebulization">Nebulization worklist</ButtonLink>
           <ButtonLink href="/ventilation">Ventilation</ButtonLink>
-          <ButtonLink href="/tubing">Tubing tracker</ButtonLink>
+          <ButtonLink href="/tubing">Change of tubing</ButtonLink>
           <ButtonLink href="/diagnostics/pft">PFT schedule</ButtonLink>
           <ButtonLink href="/handover">Shift handover</ButtonLink>
         </div>

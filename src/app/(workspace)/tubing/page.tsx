@@ -5,7 +5,7 @@ import { can } from "@/server/session";
 import { listTubing } from "@/server/data";
 import { guard } from "@/server/guard";
 
-export const metadata = { title: "Tubing Tracker" };
+export const metadata = { title: "Change of Tubing" };
 
 export default async function TubingPage() {
   const session = await guard("clinical:read");
@@ -16,8 +16,8 @@ export default async function TubingPage() {
     <>
       <PageHeader
         eyebrow="Clinical services"
-        title="Chamfecof Tubing Tracker"
-        crumbs={[{ label: "Clinical services" }, { label: "Tubing Tracker" }]}
+        title="Change of Tubing"
+        crumbs={[{ label: "Clinical services" }, { label: "Change of Tubing" }]}
         description={`Next due = last documented installation + ${policy.intervalDays} days. A replacement is never marked complete automatically.`}
       />
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-5">

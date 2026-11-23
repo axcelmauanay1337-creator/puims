@@ -1,5 +1,5 @@
 /**
- * Chamfecof tubing replacement due-status (PRODUCT_REQUIREMENTS.md §7).
+ * Change of tubing (ventilator circuit) due-status (PRODUCT_REQUIREMENTS.md §7).
  *
  * The software only computes when the NEXT replacement is due from an
  * explicitly documented installation/replacement event. It never marks a

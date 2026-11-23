@@ -53,7 +53,7 @@ export const METRIC_DEFINITIONS: Record<string, MetricDefinition> = {
   tubing: {
     id: "tubing",
     label: "Tubing upcoming / due / overdue",
-    definition: "Active ventilator encounters grouped by Chamfecof due status from the latest documented installation.",
+    definition: "Active ventilator encounters grouped by change-of-tubing due status from the latest documented installation.",
     counts:
       "Due = due later in the current 06:00–06:00 operational day; Upcoming = due within the configured window; Overdue = past due; No record = no documented installation.",
     excludes: "Discontinued encounters. Replacements are never assumed — only documented events count.",

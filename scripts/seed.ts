@@ -88,7 +88,7 @@ async function main() {
     // TRUNCATE ... CASCADE also empties `setting` (it references staff), so restore the defaults.
     await c.query(
       `INSERT INTO setting (key, value, description) VALUES
-         ('tubing.interval_days', '7', 'Chamfecof replacement interval in calendar days (policy-pending, U-04)'),
+         ('tubing.interval_days', '7', 'Change of tubing (ventilator circuit) interval in calendar days (policy-pending, U-04)'),
          ('tubing.upcoming_window_hours', '48', 'Hours before due at which tubing is flagged upcoming (policy-pending, U-04)'),
          ('session.idle_minutes', '15', 'Sign-out after this many minutes without activity (U-14)'),
          ('session.absolute_hours', '12', 'Maximum session length regardless of activity')

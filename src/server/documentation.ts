@@ -2,6 +2,7 @@ import "server-only";
 import { roleHas } from "@/lib/authz/permissions";
 import { expectedSlots, parsePrescribedTimes } from "@/lib/clinical/nebSlots";
 import { FREQUENCY_PRESETS, REASON_REQUIRED_STATUSES, type NebulizationStatus } from "@/lib/clinical/vocabulary";
+import { AIRWAY_TYPES, DISCONNECT_REASONS, REQUIRED_VENT_NUMBERS, VENT_MODES, VENT_NUMBERS, type VentNumberKey } from "@/lib/clinical/vent";
 import { HOSPITAL_TZ, parseIsoDate, zonedWallTimeToUtc } from "@/lib/time/zoned";
 import { ClinicalError } from "./clinical";
 import { getNow } from "./clock";
@@ -251,6 +252,17 @@ export interface HookInInput {
   hookedAt: string;
   newCircuitInstalled: boolean;
   recordedAtDevice: string | null;
+  airwayType?: string;
+  airwaySize?: string;
+  airwayPosition?: string;
+}
+
+
+function optText(v: string | undefined, max: number, label: string): string | null {
+  const t = (v ?? "").trim();
+  if (!t) return null;
+  if (t.length > max) throw new ClinicalError("INVALID", `${label}: max ${max} characters.`);
+  return t;
 }
 
 export async function hookIn(s: Session, input: HookInInput): Promise<WriteResult> {
@@ -262,15 +274,20 @@ export async function hookIn(s: Session, input: HookInInput): Promise<WriteResul
   if (!vent || vent.length > 60) throw new ClinicalError("INVALID", "Ventilator identifier is required (max 60 characters).");
   if (!ward || ward.length > 60) throw new ClinicalError("INVALID", "Ward / room is required (max 60 characters).");
   const hooked = clinicalTime(input.hookedAt, "Hook-in time", now);
+  const airwayType = input.airwayType ? input.airwayType : null;
+  if (airwayType && !(AIRWAY_TYPES as readonly string[]).includes(airwayType)) throw new ClinicalError("INVALID", "Choose an airway type.");
+  const airwaySize = optText(input.airwaySize, 20, "Airway size");
+  const airwayPosition = optText(input.airwayPosition, 40, "Airway position");
   return as(s, async (c) => {
     if (await existingById(c, "vent_encounter", "responsible_staff_id", id, s)) return { id, duplicate: true };
     const p = await c.query("SELECT 1 FROM patient WHERE id = $1 AND voided_at IS NULL", [input.patientId]);
     if (!p.rowCount) throw new ClinicalError("INVALID", "Select a patient.");
     try {
       await c.query(
-        `INSERT INTO vent_encounter (id, patient_id, hooked_at, ventilator_ref, ward_room, responsible_staff_id, recorded_at_device, device_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [id, input.patientId, hooked, vent, ward, s.staffId, deviceTime(input.recordedAtDevice), s.deviceId],
+        `INSERT INTO vent_encounter (id, patient_id, hooked_at, ventilator_ref, ward_room, responsible_staff_id, recorded_at_device, device_id,
+                                     airway_type, airway_size, airway_position)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [id, input.patientId, hooked, vent, ward, s.staffId, deviceTime(input.recordedAtDevice), s.deviceId, airwayType, airwaySize, airwayPosition],
       );
     } catch (e) {
       if ((e as { code?: string }).code === "23P01")
@@ -290,10 +307,14 @@ export async function hookIn(s: Session, input: HookInInput): Promise<WriteResul
   });
 }
 
-export async function disconnect(s: Session, encounterId: string, disconnectedAt: string): Promise<void> {
+export async function disconnect(s: Session, encounterId: string, disconnectedAt: string, reason?: string, note?: string): Promise<void> {
   if (!roleHas(s.role, "clinical:document")) throw new ClinicalError("FORBIDDEN", "You cannot document ventilation.");
   const now = getNow();
   const when = clinicalTime(disconnectedAt, "Disconnection time", now);
+  const why = reason ? reason : null;
+  if (why && !(DISCONNECT_REASONS as readonly string[]).includes(why)) throw new ClinicalError("INVALID", "Choose a reason for disconnection.");
+  const whyNote = optText(note, 300, "Note");
+  if (why === "OTHER" && !whyNote) throw new ClinicalError("INVALID", "Describe the reason for disconnection.");
   await as(s, async (c) => {
     const r = await c.query<{ hooked_at: Date; disconnected_at: Date | null }>(
       "SELECT hooked_at, disconnected_at FROM vent_encounter WHERE id = $1 FOR UPDATE",
@@ -302,8 +323,83 @@ export async function disconnect(s: Session, encounterId: string, disconnectedAt
     const e = r.rows[0];
     if (!e || e.disconnected_at) throw new ClinicalError("NOT_FOUND", "Encounter not found or already disconnected.");
     if (when < new Date(e.hooked_at)) throw new ClinicalError("INVALID", "Disconnection cannot be before hook-in.");
-    await c.query("UPDATE vent_encounter SET disconnected_at = $2 WHERE id = $1", [encounterId, when]);
+    await c.query("UPDATE vent_encounter SET disconnected_at = $2, disconnect_reason = $3, disconnect_note = $4 WHERE id = $1", [encounterId, when, why, whyNote]);
     await audit(c, "vent.disconnected", undefined, { table: "vent_encounter", id: encounterId });
+  });
+}
+
+// ================================================================= ventilator settings (flowsheet)
+
+export interface VentSettingInput {
+  clientId: string;
+  encounterId: string;
+  recordedAt: string;
+  mode: string;
+  modeOther?: string;
+  values: Partial<Record<VentNumberKey, string>>;
+  note?: string;
+  recordedAtDevice: string | null;
+}
+
+function ventNumber(key: VentNumberKey, raw: string | undefined, required: boolean): number | null {
+  const [label, min, max, integer] = VENT_NUMBERS[key];
+  const t = (raw ?? "").trim();
+  if (!t) {
+    if (required) throw new ClinicalError("INVALID", `${label} is required.`);
+    return null;
+  }
+  if (!/^\d+(\.\d+)?$/.test(t)) throw new ClinicalError("INVALID", `${label}: enter a number.`);
+  const n = Number(t);
+  if (integer && !Number.isInteger(n)) throw new ClinicalError("INVALID", `${label}: enter a whole number.`);
+  if (n < min || n > max) throw new ClinicalError("INVALID", `${label} must be between ${min} and ${max} — check for a typing error.`);
+  return n;
+}
+
+export async function recordVentSetting(s: Session, input: VentSettingInput): Promise<WriteResult> {
+  if (!roleHas(s.role, "clinical:document")) throw new ClinicalError("FORBIDDEN", "You cannot document ventilation.");
+  const id = requireClientId(input.clientId);
+  const now = getNow();
+  const at = clinicalTime(input.recordedAt, "Time", now);
+  if (!(VENT_MODES as readonly string[]).includes(input.mode)) throw new ClinicalError("INVALID", "Choose the ventilator mode.");
+  const modeOther = input.mode === "OTHER" ? optText(input.modeOther, 40, "Mode") : null;
+  if (input.mode === "OTHER" && !modeOther) throw new ClinicalError("INVALID", "Type the mode.");
+  const v = Object.fromEntries(
+    (Object.keys(VENT_NUMBERS) as VentNumberKey[]).map((k) => [k, ventNumber(k, input.values[k], REQUIRED_VENT_NUMBERS.includes(k))]),
+  ) as Record<VentNumberKey, number | null>;
+  const note = optText(input.note, 300, "Note");
+  return as(s, async (c) => {
+    if (await existingById(c, "vent_setting", "recorded_by", id, s)) return { id, duplicate: true };
+    const e = await c.query<{ hooked_at: Date; disconnected_at: Date | null }>("SELECT hooked_at, disconnected_at FROM vent_encounter WHERE id = $1", [
+      input.encounterId,
+    ]);
+    const enc = e.rows[0];
+    if (!enc) throw new ClinicalError("NOT_FOUND", "Ventilator encounter not found.");
+    if (at < new Date(enc.hooked_at)) throw new ClinicalError("INVALID", "Time cannot be before hook-in.");
+    if (enc.disconnected_at && at > new Date(enc.disconnected_at)) throw new ClinicalError("INVALID", "Time cannot be after disconnection.");
+    await c.query(
+      `INSERT INTO vent_setting (id, encounter_id, recorded_at, mode, mode_other, fio2, peep, tidal_volume, set_rate, pressure_support,
+         inspiratory_pressure, inspiratory_time, peak_pressure, plateau_pressure, total_rate, exhaled_vt, minute_ventilation, spo2, cuff_pressure,
+         note, recorded_by, recorded_at_device, device_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)`,
+      [
+        id, input.encounterId, at, input.mode, modeOther, v.fio2, v.peep, v.tidalVolume, v.setRate, v.pressureSupport,
+        v.inspiratoryPressure, v.inspiratoryTime, v.peakPressure, v.plateauPressure, v.totalRate, v.exhaledVt, v.minuteVentilation, v.spo2, v.cuffPressure,
+        note, s.staffId, deviceTime(input.recordedAtDevice), s.deviceId,
+      ],
+    );
+    return { id, duplicate: false };
+  });
+}
+
+export async function voidVentSetting(s: Session, id: string, reason: string): Promise<void> {
+  const why = reasonText(reason, 5);
+  await as(s, async (c) => {
+    const r = await c.query<{ recorded_by: string; voided_at: Date | null }>("SELECT recorded_by, voided_at FROM vent_setting WHERE id = $1 FOR UPDATE", [id]);
+    const row = r.rows[0];
+    if (!row || row.voided_at) throw new ClinicalError("NOT_FOUND", "Entry not found or already voided.");
+    if (row.recorded_by !== s.staffId && s.role !== "CHIEF_RT_ADMIN")
+      throw new ClinicalError("FORBIDDEN", "Only the RT who documented it, or the Chief RT, can void this entry.");
+    await c.query("UPDATE vent_setting SET voided_at = now(), voided_by = $2, void_reason = $3 WHERE id = $1", [id, s.staffId, why]);
   });
 }
 

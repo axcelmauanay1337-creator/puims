@@ -3,6 +3,7 @@ import type { Permission } from "@/lib/authz/permissions";
 import { assessFromDue, DEFAULT_TUBING_POLICY, type TubingPolicy, type TubingStatus } from "@/lib/clinical/tubing";
 import { SERVICE_LABELS, type DiagnosticService, type DiagnosticStatus, type PatientCategory, type ServiceType } from "@/lib/clinical/vocabulary";
 import type { ActivityEvent, HandoverItemRef } from "@/lib/domain/types";
+import type { VentSettingView } from "@/components/tables/ModuleTables";
 import { COMPLETED_ACTIVITY_STATUSES, countBy, eventsByShift, serviceCounts, uniquePatientsServed, type Window } from "@/lib/metrics/metrics";
 import { SHIFT_ORDER, classifyInstant, operationalDayWindow, shiftWindow, type ShiftCode } from "@/lib/time/shifts";
 import { HOSPITAL_TZ, type IsoDate, addDays, calendarDayWindow, toLocalParts } from "@/lib/time/zoned";
@@ -160,12 +161,64 @@ export async function listVentilation() {
         ward_room: string;
         responsible: string | null;
         status: "ACTIVE" | "DISCONTINUED";
+        airway_type: string | null;
+        airway_size: string | null;
+        airway_position: string | null;
+        disconnect_reason: string | null;
+        disconnect_note: string | null;
       }
     >(
-      `SELECT e.id, e.hooked_at, e.disconnected_at, e.ventilator_ref, e.ward_room, e.status, st.display_name AS responsible, ${P("p")}
+      `SELECT e.id, e.hooked_at, e.disconnected_at, e.ventilator_ref, e.ward_room, e.status, st.display_name AS responsible,
+              e.airway_type, e.airway_size, e.airway_position, e.disconnect_reason, e.disconnect_note, ${P("p")}
          FROM vent_encounter e JOIN patient p ON p.id = e.patient_id LEFT JOIN staff st ON st.id = e.responsible_staff_id
         ORDER BY (e.disconnected_at IS NULL) DESC, e.hooked_at DESC`,
     );
+    const ids = r.rows.map((e) => e.id);
+    const settings = ids.length
+      ? (
+          await c.query<{
+            id: string;
+            encounter_id: string;
+            recorded_at: Date;
+            mode: string;
+            mode_other: string | null;
+            note: string | null;
+            by_id: string;
+            by: string | null;
+            voided_at: Date | null;
+            void_reason: string | null;
+            v: Record<string, string | number | null>;
+          }>(
+            `SELECT s.id, s.encounter_id, s.recorded_at, s.mode, s.mode_other, s.note, s.recorded_by AS by_id, st.display_name AS by,
+                    s.voided_at, s.void_reason,
+                    jsonb_build_object('fio2', s.fio2, 'peep', s.peep, 'tidalVolume', s.tidal_volume, 'setRate', s.set_rate,
+                      'pressureSupport', s.pressure_support, 'inspiratoryPressure', s.inspiratory_pressure, 'inspiratoryTime', s.inspiratory_time,
+                      'peakPressure', s.peak_pressure, 'plateauPressure', s.plateau_pressure, 'totalRate', s.total_rate, 'exhaledVt', s.exhaled_vt,
+                      'minuteVentilation', s.minute_ventilation, 'spo2', s.spo2, 'cuffPressure', s.cuff_pressure) AS v
+               FROM vent_setting s LEFT JOIN staff st ON st.id = s.recorded_by
+              WHERE s.encounter_id = ANY($1::uuid[])
+              ORDER BY s.recorded_at DESC`,
+            [ids],
+          )
+        ).rows
+      : [];
+    const byEnc = new Map<string, VentSettingView[]>();
+    for (const x of settings) {
+      const list = byEnc.get(x.encounter_id) ?? [];
+      list.push({
+        id: x.id,
+        atIso: iso(x.recorded_at)!,
+        mode: x.mode,
+        modeOther: x.mode_other,
+        values: Object.fromEntries(Object.entries(x.v).filter(([, val]) => val !== null).map(([k, val]) => [k, Number(val)])),
+        note: x.note,
+        by: x.by ?? "—",
+        byId: x.by_id,
+        voided: !!x.voided_at,
+        voidReason: x.void_reason,
+      });
+      byEnc.set(x.encounter_id, list);
+    }
     return r.rows.map((e) => ({
       id: e.id,
       patient: pref(e),
@@ -176,6 +229,10 @@ export async function listVentilation() {
       responsible: e.responsible ?? "—",
       status: e.status,
       tubingStatus: tub.get(e.id) ?? null,
+      airway: { type: e.airway_type, size: e.airway_size, position: e.airway_position },
+      disconnectReason: e.disconnect_reason,
+      disconnectNote: e.disconnect_note,
+      settings: byEnc.get(e.id) ?? [],
     }));
   });
 }

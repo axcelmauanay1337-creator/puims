@@ -5,6 +5,9 @@ import { ClinicalError, requireSession } from "@/server/clinical";
 import {
   discontinueNebOrder,
   disconnect,
+  recordVentSetting,
+  voidVentSetting,
+  type VentSettingInput,
   documentNebulization,
   documentTubing,
   enterNebOrder,
@@ -51,12 +54,19 @@ export async function voidNebulizationAction(id: string, reason: string): Promis
 export async function hookInAction(input: HookInInput): Promise<DocResult<WriteResult>> {
   return wrap(async () => hookIn(await requireSession(), input), VENT);
 }
-export async function disconnectAction(encounterId: string, at: string): Promise<DocResult> {
-  return wrap(async () => disconnect(await requireSession(), encounterId, at), VENT);
+export async function disconnectAction(encounterId: string, at: string, reason?: string, note?: string): Promise<DocResult> {
+  return wrap(async () => disconnect(await requireSession(), encounterId, at, reason, note), VENT);
 }
 export async function documentTubingAction(input: TubingInput): Promise<DocResult<WriteResult>> {
   return wrap(async () => documentTubing(await requireSession(), input), VENT);
 }
 export async function voidTubingAction(id: string, reason: string): Promise<DocResult> {
   return wrap(async () => voidTubing(await requireSession(), id, reason), VENT);
+}
+
+export async function ventSettingAction(input: VentSettingInput): Promise<DocResult<WriteResult>> {
+  return wrap(async () => recordVentSetting(await requireSession(), input), VENT);
+}
+export async function voidVentSettingAction(id: string, reason: string): Promise<DocResult> {
+  return wrap(async () => voidVentSetting(await requireSession(), id, reason), VENT);
 }

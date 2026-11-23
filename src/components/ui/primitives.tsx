@@ -213,6 +213,8 @@ export function ButtonLink({ href, children, variant = "secondary" }: { href: st
 }
 
 export function SyntheticDataNote() {
+  // Only in development / UAT. On the live (lan / cloud) system the records are real.
+  if (["lan", "cloud"].includes(process.env.PUIMS_DEPLOYMENT_PROFILE ?? "development")) return null;
   return (
     <p className="mt-6 text-[11px] text-ink-3">
       All records shown are synthetic demonstration data. No real patient, staff or provider information is present.

@@ -135,6 +135,23 @@ export interface VentRow {
   responsible: string;
   status: string;
   tubingStatus: string | null;
+  airway: { type: string | null; size: string | null; position: string | null };
+  disconnectReason: string | null;
+  disconnectNote: string | null;
+  settings: VentSettingView[];
+}
+
+export interface VentSettingView {
+  id: string;
+  atIso: string;
+  mode: string;
+  modeOther: string | null;
+  values: Record<string, number>;
+  note: string | null;
+  by: string;
+  byId: string;
+  voided: boolean;
+  voidReason: string | null;
 }
 
 export interface TubingRowView {

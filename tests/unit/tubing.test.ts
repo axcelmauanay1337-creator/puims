@@ -3,7 +3,7 @@ import { assessTubing, computeNextDue, DEFAULT_TUBING_POLICY, validatePolicy } f
 
 const manila = (iso: string) => new Date(`${iso}+08:00`);
 
-describe("Chamfecof tubing due status", () => {
+describe("Change of tubing due status", () => {
   const installed = manila("2026-11-15T10:00:00");
 
   it("next due is installed_at + 7 days by default", () => {

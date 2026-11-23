@@ -16,7 +16,7 @@ test.describe("phone layout", () => {
     await bottom.getByRole("button", { name: "More" }).click();
     const drawer = page.getByRole("dialog", { name: "Navigation" });
     await expect(drawer).toBeVisible();
-    await drawer.getByRole("link", { name: "Tubing Tracker" }).click();
+    await drawer.getByRole("link", { name: "Change of Tubing" }).click();
     await expect(page).toHaveURL(/\/tubing$/);
     await expect(drawer).toBeHidden();
   });
