@@ -4,7 +4,7 @@ import { AppointmentActions } from "@/components/diagnostics/Scheduling";
 import { AccessDenied } from "@/components/ui/AccessDenied";
 import { Badge, Card, CardHeader, PageHeader, StatusBadge, SyntheticDataNote } from "@/components/ui/primitives";
 import { formatDateTime } from "@/lib/time/zoned";
-import { getAppointment } from "@/server/diagnostics";
+import { getAppointment, listActiveStaff } from "@/server/diagnostics";
 import { guard } from "@/server/guard";
 import { can } from "@/server/session";
 
@@ -34,7 +34,7 @@ export default async function AppointmentPage({ params }: PageProps<"/diagnostic
   const session = await guard("clinical:read");
   if (!session) return <AccessDenied what="diagnostics" />;
   const { id } = await params;
-  const a = await getAppointment(session, id);
+  const [a, staff] = await Promise.all([getAppointment(session, id), listActiveStaff(session)]);
   if (!a) notFound();
   const title = SERVICE_TITLE[a.service];
   return (
@@ -60,6 +60,8 @@ export default async function AppointmentPage({ params }: PageProps<"/diagnostic
           canVoid={a.canVoid}
           canStartPft={session.role === "RESPIRATORY_THERAPIST" && ["SCHEDULED", "PENDING", "COMPLETED"].includes(a.status)}
           pftFormId={a.pftFormId}
+          staff={staff}
+          selfId={session.staffId}
           edit={
             a.canCorrect
               ? {

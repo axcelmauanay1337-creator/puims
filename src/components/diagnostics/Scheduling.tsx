@@ -16,6 +16,7 @@ import { Buttons, FormError, inputCls, labelCls, ManilaDateTime, manilaNowLocal,
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Modal } from "@/components/ui/Modal";
 import { StatusBadge } from "@/components/ui/primitives";
+import { OTHER_PROCEDURE, PROCEDURE_OPTIONS } from "@/lib/clinical/procedures";
 import type { DiagnosticService, DiagnosticStatus, PatientCategory } from "@/lib/clinical/vocabulary";
 import { addDays, formatDateTime, formatTime, HOSPITAL_TZ, parseIsoDate, toLocalParts, type IsoDate } from "@/lib/time/zoned";
 import type { AppointmentRow } from "@/server/diagnostics";
@@ -25,12 +26,45 @@ const btn = "inline-flex min-h-9 items-center rounded-[7px] border border-line b
 const btnPrimary =
   "inline-flex min-h-9 items-center rounded-[7px] border border-accent bg-accent px-3 text-[13px] font-semibold text-white hover:bg-accent-hover";
 
-const PROCEDURE_HINTS: Record<DiagnosticService, string[]> = {
-  // Examples only (from the source workbook's labels); the final catalogue needs Pulmonary Unit approval.
-  PFT: ["Simple PFT", "Complete PFT with post-bronchodilator", "PFT with DLCO"],
-  ABG: ["ABG"],
-  SPUTUM_INDUCTION: ["Sputum induction"],
-};
+/** Procedure dropdown with an "Other" choice that reveals a text box. */
+function ProcedureField({ service, value, onChange }: { service: DiagnosticService; value: string; onChange: (v: string) => void }) {
+  const options = PROCEDURE_OPTIONS[service];
+  const [other, setOther] = useState(() => value !== "" && !options.includes(value));
+  return (
+    <div className="space-y-2">
+      <label className={labelCls}>
+        Procedure
+        <select
+          className={inputCls}
+          value={other ? OTHER_PROCEDURE : value}
+          onChange={(e) => {
+            if (e.target.value === OTHER_PROCEDURE) {
+              setOther(true);
+              onChange("");
+            } else {
+              setOther(false);
+              onChange(e.target.value);
+            }
+          }}
+          required
+        >
+          {options.map((p) => (
+            <option key={p} value={p}>
+              {p}
+            </option>
+          ))}
+          <option value={OTHER_PROCEDURE}>Other (type it)…</option>
+        </select>
+      </label>
+      {other ? (
+        <label className={labelCls}>
+          Procedure as requested
+          <input className={inputCls} value={value} onChange={(e) => onChange(e.target.value)} required maxLength={160} autoFocus />
+        </label>
+      ) : null}
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------- booking
 
@@ -59,7 +93,7 @@ function BookDialog({
   const clientId = useClientId();
   const [patient, setPatient] = useState(initial ?? null);
   const [at, setAt] = useState(() => manilaNowLocal().slice(0, 11) + "08:00");
-  const [procedure, setProcedure] = useState(PROCEDURE_HINTS[service][0]);
+  const [procedure, setProcedure] = useState<string>(PROCEDURE_OPTIONS[service][0]);
   const [category, setCategory] = useState<PatientCategory>("OPD");
   const [physician, setPhysician] = useState("");
   const [remarks, setRemarks] = useState("");
@@ -67,7 +101,6 @@ function BookDialog({
   const [contact, setContact] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const listId = `proc-${service}`;
   return (
     <Modal title={`Book ${service === "SPUTUM_INDUCTION" ? "sputum induction" : service}`} onClose={onClose}>
       <form
@@ -98,15 +131,7 @@ function BookDialog({
       >
         <PatientPicker value={patient} onChange={setPatient} />
         <ManilaDateTime label="Date and time" value={at} onChange={setAt} required />
-        <label className={labelCls}>
-          Procedure / test (as requested)
-          <input className={inputCls} list={listId} value={procedure} onChange={(e) => setProcedure(e.target.value)} required maxLength={160} />
-          <datalist id={listId}>
-            {PROCEDURE_HINTS[service].map((p) => (
-              <option key={p} value={p} />
-            ))}
-          </datalist>
-        </label>
+        <ProcedureField service={service} value={procedure} onChange={setProcedure} />
         <fieldset>
           <legend className={labelCls}>OPD / INP</legend>
           <div className="mt-1 flex gap-2">
@@ -300,6 +325,11 @@ function StatusGlyph({ status }: { status: string }) {
 
 // ---------------------------------------------------------------- appointment actions (detail page)
 
+export interface StaffOption {
+  id: string;
+  name: string;
+}
+
 type Dialog = null | { kind: "status"; status: DiagnosticStatus } | { kind: "reschedule" } | { kind: "void" } | { kind: "edit" };
 
 export interface EditableDetails {
@@ -320,6 +350,8 @@ export function AppointmentActions({
   canStartPft,
   pftFormId,
   edit,
+  staff = [],
+  selfId,
 }: {
   id: string;
   status: DiagnosticStatus;
@@ -330,6 +362,9 @@ export function AppointmentActions({
   pftFormId: string | null;
   /** Present when the appointment's details may be corrected (open appointment). */
   edit?: EditableDetails | null;
+  /** Active RTs (and the Chief RT) for the "Performed by" dropdown. */
+  staff?: StaffOption[];
+  selfId?: string;
 }) {
   const router = useRouter();
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -397,10 +432,12 @@ export function AppointmentActions({
         </button>
       ) : null}
       <FormError error={pftError} />
-      {dialog?.kind === "status" ? <StatusDialog id={id} status={dialog.status} label={LABEL[dialog.status]} onClose={() => setDialog(null)} /> : null}
+      {dialog?.kind === "status" ? (
+        <StatusDialog id={id} status={dialog.status} label={LABEL[dialog.status]} staff={staff} selfId={selfId} onClose={() => setDialog(null)} />
+      ) : null}
       {dialog?.kind === "reschedule" ? <RescheduleDialog id={id} onClose={() => setDialog(null)} /> : null}
       {dialog?.kind === "void" ? <VoidDialog id={id} onClose={() => setDialog(null)} /> : null}
-      {dialog?.kind === "edit" && edit ? <EditDialog id={id} edit={edit} onClose={() => setDialog(null)} /> : null}
+      {dialog?.kind === "edit" && edit ? <EditDialog id={id} service={service} edit={edit} onClose={() => setDialog(null)} /> : null}
     </div>
   );
 }
@@ -412,6 +449,7 @@ function ReasonForm({
   required,
   run,
   intro,
+  extra,
 }: {
   title: string;
   onClose: () => void;
@@ -419,6 +457,8 @@ function ReasonForm({
   required: boolean;
   run: (reason: string) => Promise<ActResult<unknown>>;
   intro?: string;
+  /** Additional fields shown above the reason. */
+  extra?: React.ReactNode;
 }) {
   const router = useRouter();
   const [reason, setReason] = useState("");
@@ -440,6 +480,7 @@ function ReasonForm({
           router.refresh();
         }}
       >
+        {extra ? <div className="mb-3">{extra}</div> : null}
         <label className={labelCls}>
           Reason {required ? "" : <span className="font-normal text-ink-3">(optional)</span>}
           <textarea
@@ -458,8 +499,24 @@ function ReasonForm({
   );
 }
 
-function StatusDialog({ id, status, label, onClose }: { id: string; status: DiagnosticStatus; label: string; onClose: () => void }) {
+function StatusDialog({
+  id,
+  status,
+  label,
+  staff,
+  selfId,
+  onClose,
+}: {
+  id: string;
+  status: DiagnosticStatus;
+  label: string;
+  staff: StaffOption[];
+  selfId?: string;
+  onClose: () => void;
+}) {
   const required = ["CANCELLED", "NO_SHOW", "FOR_RESCHEDULE"].includes(status);
+  const done = status === "COMPLETED";
+  const [performer, setPerformer] = useState(() => (selfId && staff.some((x) => x.id === selfId) ? selfId : (staff[0]?.id ?? "")));
   return (
     <ReasonForm
       title={label}
@@ -467,11 +524,26 @@ function StatusDialog({ id, status, label, onClose }: { id: string; status: Diag
       submit={label}
       required={required}
       intro={
-        status === "COMPLETED"
-          ? "Recorded in your name as the RT who performed it. Done, no-show and cancelled cannot be changed afterwards (void instead)."
+        done
+          ? "Choose the RT who performed it. Done, no-show and cancelled cannot be changed afterwards (void instead)."
           : "This change is kept in the appointment's history."
       }
-      run={(reason) => statusAction(id, status, reason)}
+      extra={
+        done && staff.length ? (
+          <label className={labelCls}>
+            Performed by
+            <select className={inputCls} value={performer} onChange={(e) => setPerformer(e.target.value)} required>
+              {staff.map((x) => (
+                <option key={x.id} value={x.id}>
+                  {x.name}
+                  {x.id === selfId ? " (you)" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null
+      }
+      run={(reason) => statusAction(id, status, reason, done ? performer || undefined : undefined)}
     />
   );
 }
@@ -524,7 +596,7 @@ function RescheduleDialog({ id, onClose }: { id: string; onClose: () => void }) 
   );
 }
 
-function EditDialog({ id, edit, onClose }: { id: string; edit: EditableDetails; onClose: () => void }) {
+function EditDialog({ id, service, edit, onClose }: { id: string; service: DiagnosticService; edit: EditableDetails; onClose: () => void }) {
   const router = useRouter();
   const [at, setAt] = useState(() => manilaLocal(edit.scheduledIso));
   const [procedure, setProcedure] = useState(edit.procedureLabel);
@@ -562,10 +634,7 @@ function EditDialog({ id, edit, onClose }: { id: string; edit: EditableDetails; 
         }}
       >
         <ManilaDateTime label="Date and time" value={at} onChange={setAt} required />
-        <label className={labelCls}>
-          Procedure / test
-          <input className={inputCls} value={procedure} onChange={(e) => setProcedure(e.target.value)} required maxLength={160} />
-        </label>
+        <ProcedureField service={service} value={procedure} onChange={setProcedure} />
         <fieldset>
           <legend className={labelCls}>OPD / INP</legend>
           <div className="mt-1 flex gap-2">

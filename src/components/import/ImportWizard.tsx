@@ -15,6 +15,7 @@ import {
   mappingAction,
   optionsAction,
   reverseImportAction,
+  suggestedLinksAction,
 } from "@/app/actions/diagnostics";
 import { ResultNote, useSensitiveAction } from "@/components/admin/useSensitiveAction";
 import { FormError, inputCls, labelCls } from "@/components/clinical/fields";
@@ -159,6 +160,11 @@ export function OptionsForm({ batchId, options, disabled }: { batchId: string; o
         </select>
       </label>
       <div className="sm:col-span-2">
+        {options.auto?.length ? (
+          <p role="status" className="mb-2 rounded-[7px] border border-line bg-neutral-soft px-3 py-2 text-[12px] text-ink-2">
+            Filled in automatically: {options.auto.join("; ")}. Change anything below if it is wrong.
+          </p>
+        ) : null}
         <p className="mb-2 text-[11px] text-ink-3">
           These are your declarations about the workbook, recorded in the audit log. A year that differs from the stated year is never changed — it is flagged.
         </p>
@@ -531,6 +537,24 @@ export function BatchActions({
             }}
           >
             Accept clean rows{sheet ? ` on ${sheet}` : ""}
+          </button>
+          <button
+            type="button"
+            className={btn}
+            disabled={busy}
+            onClick={async () => {
+              const r = await suggestedLinksAction(batchId).catch(() => unreachable);
+              if (r.ok) {
+                const d = r.data as { existing: number; linked: number; created: number };
+                setResult({
+                  ok: true,
+                  message: `Repeat visits accepted: ${d.existing} linked to existing patients, ${d.created} new patient(s) with ${d.linked} later visit(s) linked to them. Rows with any doubt are left for you.`,
+                });
+              } else setResult(r as AdminResult);
+              router.refresh();
+            }}
+          >
+            Accept suggested repeat visits
           </button>
           <button
             type="button"

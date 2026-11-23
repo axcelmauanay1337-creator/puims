@@ -14,6 +14,7 @@ import {
 } from "@/server/diagnostics";
 import {
   acceptCleanRows,
+  acceptSuggestedLinks,
   commitBatch,
   decideRow,
   discardBatch,
@@ -62,8 +63,8 @@ const DX = ["/diagnostics", "/", "/handover"];
 export async function bookAction(input: BookingInput) {
   return wrap(async () => bookAppointment(await requireSession(), input), DX, "Appointment booked.");
 }
-export async function statusAction(id: string, status: DiagnosticStatus, reason: string) {
-  return wrap(async () => updateAppointmentStatus(await requireSession(), id, { status, reason }), DX, "Status updated.");
+export async function statusAction(id: string, status: DiagnosticStatus, reason: string, performedBy?: string) {
+  return wrap(async () => updateAppointmentStatus(await requireSession(), id, { status, reason, performedBy }), DX, "Status updated.");
 }
 export async function rescheduleAction(id: string, clientId: string, scheduledAt: string, reason: string) {
   return wrap(async () => rescheduleAppointment(await requireSession(), id, { clientId, scheduledAt, reason }), DX, "Rescheduled.");
@@ -190,6 +191,9 @@ export async function candidatesAction(rowId: string) {
 }
 export async function bulkAcceptAction(batchId: string, sheet: string | null) {
   return wrap(async () => acceptCleanRows(await requireSession(), batchId, sheet ?? undefined), ["/import"]);
+}
+export async function suggestedLinksAction(batchId: string) {
+  return wrap(async () => acceptSuggestedLinks(await requireSession(), batchId), ["/import"]);
 }
 export async function dryRunAction(batchId: string) {
   return wrap(async () => dryRun(await requireSession(), batchId), ["/import"]);

@@ -66,8 +66,11 @@ Blocking flags (●) must be resolved by the reviewer typing the correct value f
 
 Reviewer declarations (batch level, audited): text date order (MDY/DMY), workbook year, "times without AM/PM are 24-hour", OPD/INP for empty cells.
 
+**Filled in automatically on upload** (shown as "Filled in automatically: …", changeable, audited as `auto_settings`): date order, 24-hour times and the empty-OPD/INP default are remembered from the last committed import; the workbook year is the year shared by ≥ 80 % of the date cells; an undeclared date order is chosen only when one order gives clearly fewer date problems (e.g. it fits the sheet months). A year typo still raises `YEAR_MISMATCH` and is never corrected.
+
 ## 4. Decisions, dry run, commit, reversal
 
+- **Accept suggested repeat visits** (one button): a row whose name matches exactly one existing patient with no sex conflict is linked to that patient; rows in the batch with the same name, the same sex and ages within 2 years become one new patient (earliest visit) with the later visits linked to it. Rows with any blocking problem, a possible duplicate entry, a sex/age conflict or several matching patients are left for a person.
 - Every row ends as **Import** (with a patient choice: new / existing / same person as another row) or **Do not import** (reason required). "Accept clean rows" accepts only rows with no blocking flag and no matching/duplicate flag, as new patients.
 - **Dry run** shows rows, accepted, rejected, pending, new/existing/linked patients, appointments to create, and every remaining problem. Commit is enabled only when there are no problems.
 - **Commit** (Chief RT, password confirmation) creates patients (`provenance = IMPORT`, sex only if clearly M/F, no DOB) and one appointment per accepted row (`source = IMPORT`, `raw_status`, `raw_age_sex`, link to its staging row).

@@ -64,6 +64,8 @@ export interface ImportOptions {
   times24h: boolean;
   /** Reviewer declares the category for rows whose OPD/INP cell is empty. */
   categoryWhenMissing: PatientCategory | null;
+  /** Set when PUIMS filled these settings itself on upload (shown to the reviewer; any change replaces it). */
+  auto?: string[];
 }
 
 export const DEFAULT_OPTIONS: ImportOptions = { dateOrder: null, workbookYear: null, times24h: false, categoryWhenMissing: null };

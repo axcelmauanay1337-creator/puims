@@ -4,7 +4,6 @@ import ExcelJS from "exceljs";
 import {
   cellText,
   csvLine,
-  DEFAULT_OPTIONS,
   detectHeaderRow,
   effectiveRow,
   FLAG_INFO,
@@ -181,26 +180,28 @@ export async function stageWorkbook(s: Session, input: { fileName: string; bytes
       throw new ClinicalError("CONFLICT", dup.rows[0].status === "COMMITTED" ? "This exact file was already imported." : "This exact file is already staged.", {
         id: dup.rows[0].id,
       });
+    const options = await initialOptions(c, sheets);
     const b = await c.query<{ id: string }>(
-      "INSERT INTO import_batch (file_name, file_sha256, file_bytes, service, sheets, options, created_by, original_enc, original_mime) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id",
+      "INSERT INTO import_batch (file_name, file_sha256, file_bytes, service, sheets, options, created_by, original_enc, original_mime, workbook_year) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id",
       [
         fileName,
         sha,
         input.bytes.length,
         input.service ?? "PFT",
         JSON.stringify(sheets.map((x) => x.meta)),
-        JSON.stringify(DEFAULT_OPTIONS),
+        JSON.stringify(options),
         s.staffId,
         // Original workbook retained encrypted (approved by the privacy officer, 2026-11-23).
         encryptBytes(input.bytes),
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        options.workbookYear,
       ],
     );
     const batchId = b.rows[0].id;
     for (const sh of sheets) {
       const recs = sh.rows.map((r) => {
         const raw = scrubRaw(r.raw, sh.meta.mapping);
-        const p = parseRow(raw, sh.meta.mapping, DEFAULT_OPTIONS, sh.meta.name);
+        const p = parseRow(raw, sh.meta.mapping, options, sh.meta.name);
         return { batch_id: batchId, sheet_name: sh.meta.name, row_number: r.rowNumber, raw, parsed: p.parsed, flags: p.flags };
       });
       for (let i = 0; i < recs.length; i += 500) {
@@ -215,11 +216,60 @@ export async function stageWorkbook(s: Session, input: { fileName: string; bytes
     await audit(
       c,
       "import.staged",
-      { sheets: sheets.length, rows: sheets.reduce((n, x) => n + x.rows.length, 0), sha256: sha },
+      { sheets: sheets.length, rows: sheets.reduce((n, x) => n + x.rows.length, 0), sha256: sha, auto_settings: options.auto ?? [] },
       { table: "import_batch", id: batchId },
     );
     return { batchId };
   });
+}
+
+/**
+ * Settings for a new batch, so the reviewer does not have to declare them every time:
+ *  - date order, 24-hour times and the empty-OPD/INP default are remembered from the last
+ *    committed import (the same workbook layout is uploaded every month);
+ *  - the workbook year is the year shared by at least 80 % of the real date cells;
+ *  - an undeclared date order is chosen only when one order gives clearly fewer problems.
+ * Nothing is ever corrected: a typo year still raises YEAR_MISMATCH and must be resolved.
+ */
+async function initialOptions(c: Tx, sheets: StagedSheet[]): Promise<ImportOptions> {
+  const last = await c.query<{ options: ImportOptions }>("SELECT options FROM import_batch WHERE committed_at IS NOT NULL ORDER BY committed_at DESC LIMIT 1");
+  const prev = last.rows[0]?.options;
+  const o: ImportOptions = {
+    dateOrder: prev?.dateOrder ?? null,
+    workbookYear: null,
+    times24h: !!prev?.times24h,
+    categoryWhenMissing: prev?.categoryWhenMissing ?? null,
+  };
+  const auto: string[] = [];
+  if (prev && (prev.dateOrder || prev.times24h || prev.categoryWhenMissing)) auto.push("settings remembered from your last import");
+
+  const parseAll = (opts: ImportOptions) =>
+    sheets.flatMap((sh) => sh.rows.map((r) => parseRow(scrubRaw(r.raw, sh.meta.mapping), sh.meta.mapping, opts, sh.meta.name)));
+  const count = (rows: ReturnType<typeof parseAll>, flags: ImportFlag[]) => rows.filter((r) => r.flags.some((f) => flags.includes(f))).length;
+
+  const base = parseAll(o);
+  const years = new Map<number, number>();
+  for (const r of base) {
+    const y = r.parsed.date ? Number(r.parsed.date.slice(0, 4)) : NaN;
+    if (Number.isInteger(y)) years.set(y, (years.get(y) ?? 0) + 1);
+  }
+  const total = [...years.values()].reduce((a, b) => a + b, 0);
+  const top = [...years].sort((a, b) => b[1] - a[1])[0];
+  if (top && total >= 5 && top[1] / total >= 0.8 && top[0] >= 2000 && top[0] <= 2100) {
+    o.workbookYear = top[0];
+    auto.push(`workbook year ${top[0]} (${top[1]} of ${total} dates)`);
+  }
+
+  if (!o.dateOrder && count(base, ["DATE_AMBIGUOUS"]) > 0) {
+    const bad: ImportFlag[] = ["DATE_AMBIGUOUS", "DATE_IMPOSSIBLE", "DATE_MALFORMED", "SHEET_MONTH_MISMATCH"];
+    const mdy = count(parseAll({ ...o, dateOrder: "MDY" }), bad);
+    const dmy = count(parseAll({ ...o, dateOrder: "DMY" }), bad);
+    if (mdy !== dmy && Math.min(mdy, dmy) * 2 < Math.max(mdy, dmy)) {
+      o.dateOrder = mdy < dmy ? "MDY" : "DMY";
+      auto.push(`dates read as ${o.dateOrder === "MDY" ? "month/day" : "day/month"} (fits the sheet months)`);
+    }
+  }
+  return auto.length ? { ...o, auto } : o;
 }
 
 const CROSS: ImportFlag[] = ["NAME_MATCHES_EXISTING", "NAME_REPEATS_IN_BATCH", "DUPLICATE_CANDIDATE"];
@@ -561,6 +611,92 @@ export async function decideRow(s: Session, rowId: string, d: RowDecision): Prom
       ],
     );
     await refreshCrossFlags(c, row.batch_id);
+  });
+}
+
+/**
+ * Accepts repeat visits that can be linked safely, so the reviewer only sees the real doubts:
+ *  - a row whose name matches exactly ONE existing patient with no sex conflict → that patient;
+ *  - rows in this batch with the same name whose sex agrees and ages differ by ≤ 2 years →
+ *    the earliest row creates the patient, the others are linked to it.
+ * Rows with a blocking problem or a possible duplicate entry are never touched.
+ */
+export async function acceptSuggestedLinks(s: Session, batchId: string): Promise<{ existing: number; linked: number; created: number }> {
+  return asChief(s, async (c) => {
+    const b = await loadBatch(c, batchId, true);
+    requireStaged(b);
+    const rows = await c.query<{
+      id: string;
+      sheet_name: string;
+      row_number: number;
+      parsed: ParsedRow;
+      flags: ImportFlag[];
+      resolved: Resolution;
+      decision: string;
+      patient_link: string | null;
+      nk: string;
+    }>(
+      `SELECT id, sheet_name, row_number, parsed, flags, resolved, decision, patient_link,
+              name_key(coalesce(resolved ->> 'name', parsed ->> 'name')) AS nk
+         FROM import_row WHERE batch_id = $1`,
+      [batchId],
+    );
+    const sheetOrder = new Map(b.sheets.map((x, i) => [x.name, i]));
+    const ok = (r: (typeof rows.rows)[number]) =>
+      r.nk !== "" && !effectiveRow(r.parsed, r.flags, r.resolved).blocking.length && !r.flags.includes("DUPLICATE_CANDIDATE");
+    const consistent = (group: Array<(typeof rows.rows)[number]>, extraSex?: string | null) => {
+      const sexes = new Set(group.map((r) => r.parsed.sex).filter(Boolean) as string[]);
+      if (extraSex && extraSex !== "UNKNOWN" && extraSex !== "X") sexes.add(extraSex);
+      if (sexes.size > 1) return false;
+      const ages = group.map((r) => r.parsed.ageYears).filter((a): a is number => a !== null);
+      return !ages.length || Math.max(...ages) - Math.min(...ages) <= 2;
+    };
+    const groups = new Map<string, Array<(typeof rows.rows)[number]>>();
+    for (const r of rows.rows) if (r.nk) groups.set(r.nk, [...(groups.get(r.nk) ?? []), r]);
+
+    let existing = 0,
+      linked = 0,
+      created = 0;
+    const decide = async (id: string, link: "NEW" | "EXISTING" | "SAME_AS_ROW", ref: string | null, why: string) => {
+      await c.query(
+        `UPDATE import_row SET decision = 'ACCEPT', patient_link = $2, patient_id = $3, same_as_row_id = $4, decided_at = now(), decided_by = $5, decision_reason = $6
+          WHERE id = $1 AND decision = 'PENDING'`,
+        [id, link, link === "EXISTING" ? ref : null, link === "SAME_AS_ROW" ? ref : null, s.staffId, why],
+      );
+    };
+    for (const [nk, group] of groups) {
+      const pending = group.filter((r) => r.decision === "PENDING" && ok(r));
+      if (!pending.length) continue;
+      const matches = await c.query<{ id: string; sex: string }>("SELECT id, sex FROM patient WHERE voided_at IS NULL AND name_key(full_name) = $1", [nk]);
+      if (matches.rowCount === 1) {
+        if (!consistent(group, matches.rows[0].sex)) continue;
+        for (const r of pending) {
+          await decide(r.id, "EXISTING", matches.rows[0].id, "Auto-linked: same name and sex as the one existing patient");
+          existing++;
+        }
+        continue;
+      }
+      if (matches.rowCount! > 1 || group.length < 2 || !consistent(group)) continue;
+      const sorted = [...group].sort(
+        (a, b2) =>
+          (a.parsed.date ?? "9999").localeCompare(b2.parsed.date ?? "9999") ||
+          (sheetOrder.get(a.sheet_name) ?? 0) - (sheetOrder.get(b2.sheet_name) ?? 0) ||
+          a.row_number - b2.row_number,
+      );
+      const anchor = sorted.find((r) => r.decision === "ACCEPT" && r.patient_link !== "SAME_AS_ROW") ?? sorted.find((r) => r.decision === "PENDING" && ok(r));
+      if (!anchor) continue;
+      if (anchor.decision === "PENDING") {
+        await decide(anchor.id, "NEW", null, "Auto: first visit of a repeat patient");
+        created++;
+      }
+      for (const r of pending) {
+        if (r.id === anchor.id) continue;
+        await decide(r.id, "SAME_AS_ROW", anchor.id, "Auto-linked: repeat visit (same name, sex and age)");
+        linked++;
+      }
+    }
+    await audit(c, "import.suggested_links_accepted", { existing, linked, created }, { table: "import_batch", id: batchId });
+    return { existing, linked, created };
   });
 }
 

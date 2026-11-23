@@ -362,14 +362,26 @@ export async function bookAppointment(s: Session, input: BookingInput): Promise<
   });
 }
 
-export async function updateAppointmentStatus(s: Session, id: string, input: { status: DiagnosticStatus; reason?: string; remarks?: string }): Promise<void> {
+export async function updateAppointmentStatus(
+  s: Session,
+  id: string,
+  input: { status: DiagnosticStatus; reason?: string; remarks?: string; /** COMPLETED only: the RT who performed it (default: you). */ performedBy?: string },
+): Promise<void> {
   if (!roleHas(s.role, "diagnostics:schedule")) throw new ClinicalError("FORBIDDEN", "You cannot update diagnostics.");
   if (!DIAG_STATUSES.includes(input.status) || input.status === "RESCHEDULED")
     throw new ClinicalError("INVALID", "Choose a status (use Reschedule to move an appointment).");
   const why = REASON_STATUSES.includes(input.status) ? reason(input.reason) : clean(input.reason, 300, "Reason");
   const remarks = input.remarks === undefined ? undefined : clean(input.remarks, 1000, "Remarks");
+  if (input.performedBy !== undefined && (input.status !== "COMPLETED" || !UUID_RE.test(input.performedBy)))
+    throw new ClinicalError("INVALID", "Performed by can only be chosen when marking the appointment done.");
   const now = getNow();
   await as(s, async (c) => {
+    let performer = s.staffId;
+    if (input.performedBy && input.performedBy !== s.staffId) {
+      const p = await c.query("SELECT 1 FROM staff WHERE id = $1 AND status = 'ACTIVE'", [input.performedBy]);
+      if (!p.rowCount) throw new ClinicalError("INVALID", "Choose an active RT as the performer.");
+      performer = input.performedBy;
+    }
     const r = await c.query<{ status: DiagnosticStatus; scheduled_at: Date; voided_at: Date | null; remarks: string | null }>(
       "SELECT status, scheduled_at, voided_at, remarks FROM diagnostic_appointment WHERE id = $1 FOR UPDATE",
       [id],
@@ -386,11 +398,16 @@ export async function updateAppointmentStatus(s: Session, id: string, input: { s
       throw new ClinicalError("INVALID", "A future appointment cannot be marked done or no-show.");
     }
     await c.query(
-      `UPDATE diagnostic_appointment SET status = $2, status_reason = $3, performed_by = CASE WHEN $2 = 'COMPLETED' THEN $4::uuid ELSE performed_by END,
+      `UPDATE diagnostic_appointment SET status = $2, status_reason = $3, performed_by = CASE WHEN $2 = 'COMPLETED' THEN $6::uuid ELSE performed_by END,
               remarks = coalesce($5, remarks), updated_by = $4 WHERE id = $1`,
-      [id, input.status, why, s.staffId, remarks === undefined ? null : remarks],
+      [id, input.status, why, s.staffId, remarks === undefined ? null : remarks, performer],
     );
-    await audit(c, "diagnostic.status_changed", { from: a.status, to: input.status }, { table: "diagnostic_appointment", id });
+    await audit(
+      c,
+      "diagnostic.status_changed",
+      { from: a.status, to: input.status, ...(input.status === "COMPLETED" ? { performed_by: performer } : {}) },
+      { table: "diagnostic_appointment", id },
+    );
   });
 }
 
@@ -528,6 +545,16 @@ export async function voidAppointment(s: Session, id: string, rawReason: string)
     if (child.rowCount) throw new ClinicalError("CONFLICT", "This appointment was rescheduled. Void the follow-up appointment first.");
     await c.query("UPDATE diagnostic_appointment SET voided_at = now(), voided_by = $2, void_reason = $3, updated_by = $2 WHERE id = $1", [id, s.staffId, why]);
     await audit(c, "diagnostic.voided", undefined, { table: "diagnostic_appointment", id });
+  });
+}
+
+/** Active staff (RTs and the Chief RT) for the "Performed by" dropdown. */
+export async function listActiveStaff(s: Session): Promise<Array<{ id: string; name: string }>> {
+  return as(s, async (c) => {
+    const r = await c.query<{ id: string; display_name: string }>(
+      "SELECT id, display_name FROM staff WHERE status = 'ACTIVE' ORDER BY role = 'CHIEF_RT_ADMIN', display_name",
+    );
+    return r.rows.map((x) => ({ id: x.id, name: x.display_name }));
   });
 }
 

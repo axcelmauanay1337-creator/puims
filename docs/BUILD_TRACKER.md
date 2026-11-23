@@ -71,3 +71,9 @@ Read-only screens on synthetic data for all 16 modules; every write workflow is 
 - Product owner: remove the authenticator. Sign-in, activation and "Confirm it's you" are password-only (ADR-0009). Lockout, rate limits, session limits and audit are unchanged.
 - Migration 0015 (Supabase security advisor): RLS on `schema_migrations`; EXECUTE on every public function revoked from PUBLIC (which included Supabase's `anon`/`authenticated` API roles) and granted only to `puims_app`; `search_path` pinned on every function.
 - Tests: 105 unit · 127 PostgreSQL · 82 Playwright.
+
+## Update 2026-11-23 (import automation; booking dropdowns)
+
+- Import: settings filled in automatically on upload (remembered from the last import; workbook year and date order inferred from the data, shown to the reviewer). New "Accept suggested repeat visits" links safe repeat visits; doubtful ones stay for a person.
+- Booking: procedure is a dropdown of the unit's PFT procedures (plus "Other"); marking an appointment done asks which RT performed it (active accounts only).
+- Tests: 105 unit · 129 PostgreSQL · 82 Playwright.

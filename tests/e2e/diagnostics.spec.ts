@@ -112,11 +112,14 @@ test.describe("import wizard (Chief RT)", () => {
     });
     await page.getByRole("button", { name: "Stage for review" }).click();
     await expect(page).toHaveURL(/\/import\/[0-9a-f-]{36}/, { timeout: 30_000 });
-    await expect(page.getByText("Day/month order is ambiguous").first()).toBeVisible();
+    // The ambiguous 6/4 date is read as month/day automatically (it fits the JUNE sheet) and the reviewer is told so.
+    await expect(page.getByText(/Filled in automatically:.*month\/day/)).toBeVisible();
     await expect(page.getByText("Year looks mistyped — not corrected automatically").first()).toBeVisible();
     // Contact info is kept exactly as written (U-08 approved) and flagged as not checked as a phone number.
     await expect(page.getByText("Contact kept exactly as written — not checked as a phone number").first()).toBeVisible();
     await page.getByRole("button", { name: "Accept clean rows" }).click();
+    await page.getByRole("button", { name: "Accept suggested repeat visits" }).click();
+    await expect(page.getByText(/Repeat visits accepted:/)).toBeVisible();
     await page.getByRole("button", { name: "Dry run" }).click();
     await expect(page.getByText("Dry run: not ready")).toBeVisible();
     await expect(page.getByRole("button", { name: "Commit import…" })).toBeDisabled();

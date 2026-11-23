@@ -17,6 +17,7 @@ import {
 import { amendPft, createPftForm, finalizePft, getPftForm, savePftDraft, signPftAsRt, voidPftForm, addSignatory, createTemplateVersion } from "@/server/pft";
 import {
   acceptCleanRows,
+  acceptSuggestedLinks,
   commitBatch,
   decideRow,
   discardBatch,
@@ -111,6 +112,18 @@ describe("diagnostic scheduling", () => {
     expect(viewed.rowCount).toBe(1);
     const row = (await o.query("SELECT scheduler_id, status, source FROM diagnostic_appointment WHERE id = $1", [id])).rows[0];
     expect(row).toMatchObject({ scheduler_id: s.staffId, status: "SCHEDULED", source: "ONLINE" });
+  });
+
+  it("marking done records the RT chosen as performer (an active account only)", async () => {
+    const s = await sessionFor("rt.alpha");
+    const bravo = await sessionFor("rt.bravo");
+    const { id } = await book(s, -1);
+    const deactivated = (await o.query("SELECT id FROM staff WHERE status = 'DEACTIVATED' LIMIT 1")).rows[0].id;
+    await expect(updateAppointmentStatus(s, id, { status: "COMPLETED", performedBy: deactivated })).rejects.toThrow(/active RT/);
+    await expect(updateAppointmentStatus(s, id, { status: "PENDING", performedBy: bravo.staffId })).rejects.toThrow(/done/);
+    await updateAppointmentStatus(s, id, { status: "COMPLETED", performedBy: bravo.staffId });
+    const r = (await o.query("SELECT performed_by, updated_by FROM diagnostic_appointment WHERE id = $1", [id])).rows[0];
+    expect(r).toEqual({ performed_by: bravo.staffId, updated_by: s.staffId });
   });
 
   it("rejects bookings too far in the past or future", async () => {
@@ -388,7 +401,10 @@ describe("workbook import", () => {
     expect(v.batch.sheets[1].inferredFromValues).toEqual([0]); // "Column 1" suggested as Date from its values
     expect(v.totals.rows).toBe(12);
     const flags = (sheet: string, row: number) => v.rows.find((r) => r.sheet === sheet && r.rowNumber === row)!.flags;
-    expect(flags("JUNE", 6)).toContain("DATE_AMBIGUOUS");
+    // 6/4/2025 on the JUNE sheet: PUIMS fills in "month/day" itself because that order fits the sheet months.
+    expect(flags("JUNE", 6)).not.toContain("DATE_AMBIGUOUS");
+    expect(v.batch.options.dateOrder).toBe("MDY");
+    expect(v.batch.options.auto).toEqual(expect.arrayContaining([expect.stringMatching(/month\/day/)]));
     expect(flags("JUNE", 7)).toContain("YEAR_MALFORMED");
     expect(flags("JUNE", 8)).toContain("DATE_MISSING");
     expect(flags("JUNE", 9)).toEqual(expect.arrayContaining(["TIME_NO_MERIDIEM", "STATUS_UNKNOWN"]));
@@ -397,7 +413,10 @@ describe("workbook import", () => {
     expect(flags("JUNE", 12)).toEqual(expect.arrayContaining(["NAME_MISSING", "PROCEDURE_MISSING", "STATUS_MISSING", "CATEGORY_MISSING", "AGE_SEX_UNCERTAIN"]));
     expect(flags("JULY", 2)).toContain("NAME_REPEATS_IN_BATCH");
     expect(flags("JULY", 3)).toEqual(expect.arrayContaining(["AGE_SEX_UNCERTAIN"]));
-    expect(flags("JULY", 4)).toContain("YEAR_MISSING");
+    // No year written: the workbook year (2025, shared by most dates) is filled in automatically and shown as such.
+    expect(flags("JULY", 4)).toContain("YEAR_FROM_WORKBOOK");
+    expect(v.batch.options.auto).toEqual(expect.arrayContaining([expect.stringMatching(/workbook year 2025/)]));
+    expect(flags("JULY", 3)).toContain("YEAR_MISMATCH"); // 2024 in a 2025 workbook — still left for a person
     expect(flags("JULY", 5)).toContain("SHEET_MONTH_MISMATCH");
   });
 
@@ -548,5 +567,44 @@ describe("workbook import", () => {
     expect(left.rows[0].n).toBe(0);
     const audit = JSON.stringify((await o.query("SELECT before_data, after_data FROM audit_log WHERE table_name = 'import_row'")).rows);
     expect(audit).not.toContain("Demo, Patient");
+  });
+});
+
+describe("import automation: remembered settings and suggested repeat visits", () => {
+  async function repeatWorkbook(): Promise<Buffer> {
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = new ExcelJS.Workbook();
+    const d = (m: number, day: number) => new Date(Date.UTC(2026, m - 1, day));
+    const hdr = ["DATE", "TIME", "PATIENT NAME", "AGE / SEX", "PHYSICIAN", "PROCEDURE", "Status"];
+    const aug = wb.addWorksheet("AUGUST");
+    aug.addRow(hdr);
+    aug.addRow([d(8, 3), "9:00 AM", "Demo, Repeat One", "50/M", "Dr. Demo", "SIMPLE PFT W/ POST BD", "DONE"]); // 2 first visit
+    aug.addRow([d(8, 4), "9:00 AM", "Demo, Repeat Two", "40/F", "Dr. Demo", "SIMPLE PFT W/ POST BD", "DONE"]); // 3
+    aug.addRow([d(8, 5), "9:00 AM", "Demo, Single Visit", "33/F", "Dr. Demo", "SIMPLE PFT W/ POST BD", "DONE"]); // 4 clean
+    const sep = wb.addWorksheet("SEPTEMBER");
+    sep.addRow(hdr);
+    sep.addRow([d(9, 7), "10:00 AM", "Demo, Repeat One", "50/M", "Dr. Demo", "COMPLETE PFT W/ POST BD", "DONE"]); // 2 repeat of One
+    sep.addRow([d(9, 8), "10:00 AM", "Demo, Repeat Two", "41/M", "Dr. Demo", "SIMPLE PFT W/ POST BD", "DONE"]); // 3 sex conflict → left for a person
+    return Buffer.from(await wb.xlsx.writeBuffer());
+  }
+
+  it("fills in settings itself, links safe repeat visits and leaves doubtful ones for a person", async () => {
+    const chief = await sessionFor("chief.demo", true);
+    const { batchId: b } = await stageWorkbook(chief, { fileName: "repeats.xlsx", bytes: await repeatWorkbook() });
+    let v = await getBatch(chief, b);
+    expect(v.batch.options.workbookYear).toBe(2026);
+    expect(v.batch.options.auto).toEqual(expect.arrayContaining([expect.stringMatching(/remembered/), expect.stringMatching(/workbook year 2026/)]));
+
+    const r = await acceptSuggestedLinks(chief, b);
+    expect(r).toEqual({ existing: 0, created: 1, linked: 1 });
+    v = await getBatch(chief, b);
+    const row = (sheet: string, n: number) => v.rows.find((x) => x.sheet === sheet && x.rowNumber === n)!;
+    expect(row("AUGUST", 2)).toMatchObject({ decision: "ACCEPT", patientLink: "NEW" });
+    expect(row("SEPTEMBER", 2)).toMatchObject({ decision: "ACCEPT", patientLink: "SAME_AS_ROW", sameAsRowId: row("AUGUST", 2).id });
+    expect(row("AUGUST", 3).decision).toBe("PENDING"); // same name, different sex: a person decides
+    expect(row("SEPTEMBER", 3).decision).toBe("PENDING");
+    expect(row("AUGUST", 4).decision).toBe("PENDING"); // not a repeat: "Accept clean rows" handles it
+    expect((await acceptCleanRows(chief, b)).accepted).toBe(1);
+    await discardBatch(chief, b, "Automation test batch");
   });
 });
