@@ -24,9 +24,9 @@ test.describe("nebulization (RT)", () => {
     await page.goto("/nebulization");
     await page.getByRole("link", { name: "New order" }).click();
     await pickPatient(page, "SYN-1002");
-    await page.getByLabel(/Order reference/).fill(ref);
-    await page.getByLabel(/Prescriber/).fill("Dr. Demo E2E");
-    await page.getByLabel(/Medication exactly as ordered/).fill("Medication as written (synthetic)");
+    await page.getByLabel(/Order date\/time/).fill(manila(new Date(Date.now() - 3 * 3_600_000)).date);
+    await page.getByLabel(/Attending physician/).fill("Dr. Demo E2E");
+    await page.getByLabel(/Medication exactly as ordered/).fill(`Medication as written (synthetic) ${ref}`);
     await page.getByLabel(/Frequency/).selectOption("ONCE");
     // The current minute is always inside the current operational day and not in the future.
     await page.getByLabel(/Times written on the order/).fill(manila(new Date()).hm);

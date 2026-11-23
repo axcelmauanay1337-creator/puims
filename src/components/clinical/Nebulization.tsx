@@ -184,7 +184,7 @@ export function NebWorklist({ rows, me, isChief, canDocument }: { rows: NebRow[]
         <span>
           <span className="block">{r.medication}</span>
           <span className="block text-[11px] text-ink-3">
-            {r.orderReference} · {r.frequency} · {r.prescriber}
+            Ordered {r.orderReference} · {r.frequency} · {r.prescriber}
           </span>
         </span>
       ),
@@ -251,8 +251,8 @@ export function NebWorklist({ rows, me, isChief, canDocument }: { rows: NebRow[]
         columns={columns}
         rowKey={(r) => r.key}
         caption="Nebulization worklist"
-        searchPlaceholder="Patient, hospital no., order ref"
-        searchText={(r) => `${r.patient.name} ${r.patient.hospitalId} ${r.orderReference}`}
+        searchPlaceholder="Patient, hospital no., medication"
+        searchText={(r) => `${r.patient.name} ${r.patient.hospitalId} ${r.orderReference} ${r.medication}`}
         filters={[
           {
             key: "st",
@@ -288,7 +288,7 @@ export function ActiveOrders({ orders, canDocument, canOrder }: { orders: Active
   const [dose, setDose] = useState<DoseTarget | null>(null);
   const [stopping, setStopping] = useState<ActiveOrder | null>(null);
   const columns: Column<ActiveOrder>[] = [
-    { key: "ref", header: "Order ref", cell: (r) => <span className="tabular font-medium">{r.orderReference}</span>, sort: (r) => r.orderReference },
+    { key: "ref", header: "Ordered", cell: (r) => <span className="tabular font-medium">{r.orderReference}</span>, sort: (r) => r.orderReference },
     {
       key: "patient",
       header: "Patient",
@@ -314,7 +314,7 @@ export function ActiveOrders({ orders, canDocument, canOrder }: { orders: Active
     },
     {
       key: "by",
-      header: "Prescriber / entered by",
+      header: "Attending physician / entered by",
       cell: (r) => (
         <span className="text-[12px]">
           {r.prescriber} · {r.enteredBy}
@@ -356,7 +356,7 @@ export function ActiveOrders({ orders, canDocument, canOrder }: { orders: Active
       {dose && <DocumentDoseDialog target={dose} onClose={() => setDose(null)} />}
       {stopping && (
         <ReasonDialog
-          title={`Discontinue ${stopping.orderReference}`}
+          title={`Discontinue order of ${stopping.orderReference}`}
           explain="Orders are never edited. Discontinue this order (e.g. stopped by the physician, or transcribed wrongly) and enter a new one if needed. Remaining expected doses disappear from the worklist."
           submit="Discontinue order"
           onSubmit={(reason) => discontinueNebOrderAction(stopping.id, reason)}
@@ -368,8 +368,8 @@ export function ActiveOrders({ orders, canDocument, canOrder }: { orders: Active
         columns={columns}
         rowKey={(r) => r.id}
         caption="Active nebulization orders"
-        searchPlaceholder="Patient or order ref"
-        searchText={(r) => `${r.patient.name} ${r.patient.hospitalId} ${r.orderReference}`}
+        searchPlaceholder="Patient, medication or order date"
+        searchText={(r) => `${r.patient.name} ${r.patient.hospitalId} ${r.orderReference} ${r.medication}`}
         initialSort={{ key: "ref", dir: "asc" }}
       />
     </>
@@ -414,12 +414,14 @@ export function NewOrderForm({ initialPatient = null }: { initialPatient?: { id:
     >
       <PatientPicker value={patient} onChange={setPatient} />
       <div className="grid gap-4 sm:grid-cols-2">
+        <ManilaDateTime
+          label="Order date/time (as written in the chart)"
+          value={f.orderReference}
+          onChange={(v) => setF((x) => ({ ...x, orderReference: v }))}
+          required
+        />
         <label className={labelCls}>
-          Order reference <span className="text-danger">*</span>
-          <input className={inputCls} value={f.orderReference} onChange={set("orderReference")} maxLength={60} required />
-        </label>
-        <label className={labelCls}>
-          Prescriber <span className="text-danger">*</span>
+          Attending physician <span className="text-danger">*</span>
           <input className={inputCls} value={f.prescriber} onChange={set("prescriber")} maxLength={120} required />
         </label>
         <label className={`${labelCls} sm:col-span-2`}>

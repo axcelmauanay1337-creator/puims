@@ -111,7 +111,7 @@ export default async function PatientProfilePage({ params }: PageProps<"/patient
                 <li key={o.id} className="py-2">
                   <b className="block text-[13px]">{o.orderReference}</b>
                   {o.medication} · <Badge>{o.frequency}</Badge> ·{" "}
-                  {o.prescribedTimes.length ? o.prescribedTimes.map(formatClock).join(", ") : "no scheduled times on order"} · {o.prescriber}
+                  {o.prescribedTimes.length ? o.prescribedTimes.map(formatClock).join(", ") : "no scheduled times on order"} · Attending: {o.prescriber}
                 </li>
               ))}
             </ul>

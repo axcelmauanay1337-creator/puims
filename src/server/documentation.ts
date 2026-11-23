@@ -3,7 +3,7 @@ import { roleHas } from "@/lib/authz/permissions";
 import { expectedSlots, parsePrescribedTimes } from "@/lib/clinical/nebSlots";
 import { FREQUENCY_PRESETS, REASON_REQUIRED_STATUSES, type NebulizationStatus } from "@/lib/clinical/vocabulary";
 import { AIRWAY_TYPES, DISCONNECT_REASONS, REQUIRED_VENT_NUMBERS, VENT_MODES, VENT_NUMBERS, type VentNumberKey } from "@/lib/clinical/vent";
-import { HOSPITAL_TZ, parseIsoDate, zonedWallTimeToUtc } from "@/lib/time/zoned";
+import { formatDateTime, HOSPITAL_TZ, parseIsoDate, zonedWallTimeToUtc } from "@/lib/time/zoned";
 import { ClinicalError } from "./clinical";
 import { getNow } from "./clock";
 import { audit, getSettingNumber, tx, type Tx } from "./db";
@@ -103,11 +103,18 @@ export async function enterNebOrder(s: Session, input: NebOrderInput): Promise<W
   if (!roleHas(s.role, "orders:enter")) throw new ClinicalError("FORBIDDEN", "Only Respiratory Therapists enter nebulization orders.");
   const id = requireClientId(input.clientId);
   const now = getNow();
-  const orderReference = input.orderReference.trim();
+  // The order is identified by the date/time the physician wrote it in the chart (picker value → "23 Nov 2026, 2:15 PM").
+  let orderReference = input.orderReference.trim();
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(orderReference)) {
+    const at = parseManilaWall(orderReference);
+    if (!at) throw new ClinicalError("INVALID", "Order date/time: enter a valid date and time.");
+    if (at.getTime() > now.getTime() + FUTURE_TOLERANCE_MS) throw new ClinicalError("INVALID", "Order date/time cannot be in the future.");
+    orderReference = formatDateTime(at);
+  }
   const prescriber = input.prescriber.trim();
   const medication = input.medicationAsOrdered.trim();
-  if (!orderReference || orderReference.length > 60) throw new ClinicalError("INVALID", "Order reference is required (max 60 characters).");
-  if (!prescriber || prescriber.length > 120) throw new ClinicalError("INVALID", "Prescriber is required (max 120 characters).");
+  if (!orderReference || orderReference.length > 60) throw new ClinicalError("INVALID", "Order date/time (from the chart) is required.");
+  if (!prescriber || prescriber.length > 120) throw new ClinicalError("INVALID", "Attending physician is required (max 120 characters).");
   if (!medication || medication.length > 300) throw new ClinicalError("INVALID", "Medication as ordered is required (max 300 characters).");
   if (!(FREQUENCY_PRESETS as readonly string[]).includes(input.frequency)) throw new ClinicalError("INVALID", "Select a frequency.");
   const times = parsePrescribedTimes(input.prescribedTimes);

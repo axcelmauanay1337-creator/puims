@@ -2,7 +2,8 @@ import type pg from "pg";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getPool } from "@/server/db";
-import { hookIn } from "@/server/documentation";
+import { enterNebOrder, hookIn } from "@/server/documentation";
+import { formatDateTime, HOSPITAL_TZ, toLocalParts } from "@/lib/time/zoned";
 import type { Session } from "@/server/session";
 import {
   availableUnits,
@@ -127,6 +128,31 @@ describe("ventilator hook-in with an equipment unit", () => {
     const v = await o.query("SELECT ventilator_ref FROM vent_encounter WHERE patient_id = $1 AND disconnected_at IS NULL", [patientId]);
     expect(v.rows[0].ventilator_ref).toBe("TV-01");
     await expect(hookIn(rt, { ...base, clientId: randomUUID(), patientId: other, wardRoom: "ICU-S" })).rejects.toThrow(/already on another patient/);
+  });
+});
+
+describe("neb order date/time from the chart", () => {
+  it("is stored as a readable date/time; a future order time is rejected", async () => {
+    const z = (n: number) => String(n).padStart(2, "0");
+    const local = (d: Date) => {
+      const p = toLocalParts(d, HOSPITAL_TZ);
+      return `${p.year}-${z(p.month)}-${z(p.day)}T${z(p.hour)}:${z(p.minute)}`;
+    };
+    const ordered = new Date(Math.floor((Date.now() - 2 * 3600_000) / 60_000) * 60_000);
+    const base = {
+      patientId,
+      prescriber: "Dr. Attending (synthetic)",
+      medicationAsOrdered: "Synthetic medication",
+      frequency: "PRN",
+      prescribedTimes: "",
+      startAt: local(new Date(Date.now() - 3600_000)),
+      endAt: "",
+    };
+    const id = randomUUID();
+    await enterNebOrder(rt, { ...base, clientId: id, orderReference: local(ordered) });
+    const r = await o.query("SELECT order_reference, prescriber FROM neb_order WHERE id = $1", [id]);
+    expect(r.rows[0]).toEqual({ order_reference: formatDateTime(ordered), prescriber: "Dr. Attending (synthetic)" });
+    await expect(enterNebOrder(rt, { ...base, clientId: randomUUID(), orderReference: local(new Date(Date.now() + 3 * 3600_000)) })).rejects.toThrow(/future/);
   });
 });
 
