@@ -1,0 +1,86 @@
+# PUIMS on your own machine: database + app + automatic HTTPS (Caddy) + daily backups.
+# Managed by ./puims-server.sh — you should not need to edit this file.
+name: puims
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${PUIMS_DB_SUPERUSER_PASSWORD:?run ./puims-server.sh setup first}
+      PUIMS_DB_OWNER_PASSWORD: ${PUIMS_DB_OWNER_PASSWORD}
+      PUIMS_DB_APP_PASSWORD: ${PUIMS_DB_APP_PASSWORD}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ../db/bootstrap.sql:/puims/bootstrap.sql:ro
+      - ./initdb.sh:/docker-entrypoint-initdb.d/10-puims.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d puims"]
+      interval: 3s
+      timeout: 3s
+      retries: 60
+    # No published port: only the app, backups and the tools below can reach the database.
+
+  app:
+    build: { context: .., dockerfile: deploy/Dockerfile }
+    image: puims-app:latest
+    restart: unless-stopped
+    depends_on: { db: { condition: service_healthy } }
+    environment:
+      DATABASE_URL: postgres://puims_app:${PUIMS_DB_APP_PASSWORD}@db:5432/puims
+      PUIMS_DATA_KEY: ${PUIMS_DATA_KEY}
+      PUIMS_DEPLOYMENT_PROFILE: lan
+      PUIMS_PUBLIC_URL: https://${PUIMS_SITE}
+      PUIMS_TRUST_PROXY: "true"
+      PUIMS_OFFLINE_POLICY_APPROVED: "true"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  web:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [app]
+    ports: ["${PUIMS_HTTP_PORT:-80}:80", "${PUIMS_HTTPS_PORT:-443}:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+  backup:
+    image: postgres:16
+    restart: unless-stopped
+    depends_on: { db: { condition: service_healthy } }
+    environment:
+      PGPASSWORD: ${PUIMS_DB_OWNER_PASSWORD}
+    volumes:
+      - ./backups:/backups
+    # A backup when started and then every 24 hours; backups older than 14 days are removed.
+    # Copy deploy/backups to another place (encrypted USB / second computer) regularly.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        while true; do
+          f=/backups/puims-$$(date +%Y%m%d-%H%M).dump
+          pg_dump -h db -U puims_owner -d puims -Fc -f "$$f" && echo "backup written: $$f"
+          find /backups -name 'puims-*.dump' -mtime +14 -delete
+          sleep 86400
+        done
+
+  # One-off jobs: migrations and creating the Chief RT account (run by ./puims-server.sh).
+  tools:
+    image: puims-app:latest
+    profiles: ["tools"]
+    depends_on: { db: { condition: service_healthy } }
+    environment:
+      MIGRATION_DATABASE_URL: postgres://puims_owner:${PUIMS_DB_OWNER_PASSWORD}@db:5432/puims
+      PUIMS_DATA_KEY: ${PUIMS_DATA_KEY}
+      PUIMS_PUBLIC_URL: https://${PUIMS_SITE}
+      PUIMS_DEPLOYMENT_PROFILE: lan
+
+volumes:
+  db-data:
+  caddy-data:
+  caddy-config:

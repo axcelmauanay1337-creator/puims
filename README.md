@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PUIMS — Pulmonary Unit Information and Management System
 
-## Getting Started
+Notion-style clinical workspace for Respiratory Therapists: patient masterlist, shifts and handover, nebulization, mechanical ventilation, Chamfecof tubing tracking, PFT / ABG / sputum induction, reports, import, audit.
 
-First, run the development server:
+> **Status: Milestones 0–8 built and tested — not for clinical use.** All 16 modules work end to end on synthetic data: accounts with authenticator, row-level security, append-only audit, patients, shifts and handover, nebulization / ventilation / tubing documentation, PFT / ABG / sputum-induction scheduling, the PFT form as the official record, the workbook import wizard, reports with audited exports, and an interim offline capture design (off by default). What remains is the hospital's: approvals, real-data decisions and clinical UAT — see `docs/PRODUCTION_READINESS_CHECKLIST.md`. Do not load real patient data until hospital IT, DPO/privacy and clinical governance approve it.
+
+## Run it for real (your own machine)
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+./puims-server.sh setup
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Database, app, automatic HTTPS and daily backups on one computer (unit PC or small cloud server). Step-by-step: [`docs/SERVER_SETUP.md`](docs/SERVER_SETUP.md).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Quick start for developers (local, synthetic data)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Requirements: **Node.js 22** (≥ 20.9) and **Docker Desktop** (or Docker Engine with Compose). Linux, macOS or Windows.
 
-## Learn More
+```bash
+npm ci
+npm run setup      # creates .env.local with fresh secrets, starts PostgreSQL in Docker, migrates, loads synthetic data
+npm run dev        # then open http://localhost:3000
+```
 
-To learn more about Next.js, take a look at the following resources:
+`npm run setup` prints the sign-in details. Accounts: `chief.demo` (Chief RT) and `rt.alpha` … `rt.echo` (RTs). For the authenticator code run `npm run dev:totp -- chief.demo` in a second terminal (or add the secret from `.seed-credentials.json` to an authenticator app). If port 5432 is taken: `npm run setup -- --port 5433`. Already have PostgreSQL 16 locally (Linux, sudo)? `npm run setup -- --native`. Stop the database with `npm run db:down`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Scripts
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Command                                                       | What it does                                                                             |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `npm run dev` / `npm run build` / `npm start`                 | Develop / build / serve                                                                  |
+| `npm run lint` · `npm run typecheck` · `npm run format:check` | Static checks                                                                            |
+| `npm test`                                                    | Unit tests (time rules, tubing, metrics, TOTP RFC vectors, password policy, crypto)      |
+| `npm run test:db`                                             | PostgreSQL tests: RLS, audit, constraints, auth, every clinical workflow (`TEST_*` URLs) |
+| `npm run test:e2e`                                            | Playwright + axe against a production build and the test DB, with real sign-in           |
+| `npm run verify`                                              | Everything, in CI order                                                                  |
+| `npm run db:migrate` · `npm run db:seed`                      | Apply migrations · load synthetic data (dev/UAT only)                                    |
+| `npm run admin:bootstrap -- --username … --name "…"`          | Create THE Chief RT account (prints a one-time activation link)                          |
+| `npm run fixture:workbook`                                    | Write a messy, synthetic PFT scheduling workbook to try the import wizard                |
+| `npm run build:offline`                                       | Rebuild the offline capture page script (runs automatically before dev/build)            |
+| `scripts/backup.sh` · `scripts/restore-drill.sh`              | Encrypted backup · verified restore drill                                                |
 
-## Deploy on Vercel
+## Configuration
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+See `.env.example`. Key variables: `DATABASE_URL` (least-privileged app role), `MIGRATION_DATABASE_URL` (owner; migrations/backups only), `PUIMS_DATA_KEY` (encrypts authenticator secrets; keep outside DB backups), `PUIMS_DEPLOYMENT_PROFILE` (`development` · `uat` · `lan` · `cloud`), `PUIMS_PUBLIC_URL`.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Privacy rules for contributors
+
+- Never commit, upload, paste or screenshot real patient data — including into AI tools, issue trackers or analytics.
+- Hospital numbers in fixtures must use the reserved `SYN-` prefix; staff are "RT Alpha (Demo)…", physicians "Dr. Demo …".
+- Patient identifiers must never appear in URLs (use internal UUIDs; send search terms in POST bodies).
+- Do not add analytics/telemetry SDKs.
+
+## Documentation
+
+- `docs/00-MILESTONE-0-PLAN.md` — assumptions, open decisions (U-01…U-19), architecture, entity map, schema review, milestone plan
+- `docs/USER_GUIDE.md` · `docs/CLINICAL_UAT_CHECKLIST.md` · `docs/IMPORT_GUIDE.md`
+- `docs/DEPLOYMENT_RUNBOOK.md` · `docs/PRODUCTION_READINESS_CHECKLIST.md` · `docs/SECURITY_REVIEW.md` · `docs/BACKUP_AND_RESTORE.md` · `docs/DATA_DICTIONARY.md`
+- `docs/THREAT_MODEL.md` · `docs/OFFLINE_BEHAVIOR_MATRIX.md` · `docs/adr/`
+- `docs/BUILD_TRACKER.md` — milestone status and evidence
+- `docs/handoff/` — the original requirements package

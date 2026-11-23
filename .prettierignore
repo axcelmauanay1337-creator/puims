@@ -1,0 +1,9 @@
+.next
+node_modules
+docs/handoff
+public/offline.html
+package-lock.json
+playwright-report
+test-results
+public/offline/capture.js
+deploy/backups

@@ -1,0 +1,23 @@
+# Local development database for PUIMS (synthetic data only).
+# Started by `npm run setup` / `npm run db:up`, which pass --env-file .env.local.
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${PUIMS_DB_SUPERUSER_PASSWORD:?run npm run setup first}
+      PUIMS_DB_OWNER_PASSWORD: ${PUIMS_DB_OWNER_PASSWORD}
+      PUIMS_DB_APP_PASSWORD: ${PUIMS_DB_APP_PASSWORD}
+    ports:
+      - "127.0.0.1:${PUIMS_DB_PORT:-5432}:5432" # localhost only
+    volumes:
+      - puims-db:/var/lib/postgresql/data
+      - ./db/bootstrap.sql:/puims/bootstrap.sql:ro
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d puims_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+volumes:
+  puims-db:

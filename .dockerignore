@@ -1,0 +1,14 @@
+node_modules
+.next
+.env*
+!.env.example
+.seed-credentials*
+test-results
+playwright-report
+*.xlsx
+*.csv
+puims-source.tar.gz
+deploy/.env
+deploy/backups
+deploy/Caddyfile
+deploy/*.crt

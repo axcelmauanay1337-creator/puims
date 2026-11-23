@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // generated bundle (scripts/build-offline.mjs)
+    "public/offline/capture.js",
   ]),
 ]);
 
