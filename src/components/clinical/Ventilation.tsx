@@ -83,7 +83,7 @@ const short = (k: VentNumberKey, v: Record<string, number>) => (v[k] === undefin
 
 export function settingSummary(x: VentSettingView): string {
   const v = x.values;
-  const mode = x.mode === "OTHER" ? (x.modeOther ?? "Other") : VENT_MODE_LABEL[x.mode as keyof typeof VENT_MODE_LABEL] ?? x.mode;
+  const mode = x.mode === "OTHER" ? (x.modeOther ?? "Other") : (VENT_MODE_LABEL[x.mode as keyof typeof VENT_MODE_LABEL] ?? x.mode);
   const parts = [
     mode,
     `FiO₂ ${v.fio2}%`,
@@ -325,21 +325,30 @@ export function VentilationList({ rows, canDocument, me, isChief }: { rows: Vent
     {
       key: "act",
       header: "Action",
-      cell: (r) =>
-        r.status === "ACTIVE" && canDocument ? (
-          <span className="flex flex-wrap gap-1.5">
-            <button
-              type="button"
-              onClick={() => setSetting(r)}
-              className="min-h-9 rounded-[7px] border border-accent bg-accent px-2.5 text-[12px] font-semibold text-white hover:bg-accent-hover"
-            >
-              Record settings
-            </button>
-            <button type="button" onClick={() => setClosing(r)} className="min-h-9 rounded-[7px] border border-line px-2.5 text-[12px] hover:bg-hover">
-              Disconnect
-            </button>
-          </span>
-        ) : null,
+      cell: (r) => (
+        <span className="flex flex-wrap gap-1.5">
+          <Link
+            href={`/ventilation/${r.id}/flowsheet`}
+            className="inline-flex min-h-9 items-center rounded-[7px] border border-line px-2.5 text-[12px] hover:bg-hover"
+          >
+            Flowsheet
+          </Link>
+          {r.status === "ACTIVE" && canDocument ? (
+            <span className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => setSetting(r)}
+                className="min-h-9 rounded-[7px] border border-accent bg-accent px-2.5 text-[12px] font-semibold text-white hover:bg-accent-hover"
+              >
+                Record settings
+              </button>
+              <button type="button" onClick={() => setClosing(r)} className="min-h-9 rounded-[7px] border border-line px-2.5 text-[12px] hover:bg-hover">
+                Disconnect
+              </button>
+            </span>
+          ) : null}
+        </span>
+      ),
     },
   ];
   return (
@@ -440,12 +449,7 @@ export function HookInForm({ intervalDays }: { intervalDays: number }) {
             </label>
             <label className={labelCls}>
               Position (e.g. 22 cm at lip)
-              <input
-                className={inputCls}
-                value={f.airwayPosition}
-                onChange={(e) => setF((x) => ({ ...x, airwayPosition: e.target.value }))}
-                maxLength={40}
-              />
+              <input className={inputCls} value={f.airwayPosition} onChange={(e) => setF((x) => ({ ...x, airwayPosition: e.target.value }))} maxLength={40} />
             </label>
           </>
         ) : null}

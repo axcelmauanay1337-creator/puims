@@ -954,3 +954,38 @@ export async function searchPatients(query: string): Promise<SearchHit[]> {
 }
 
 export type { ServiceType };
+
+// ----------------------------------------------------------------- ventilator flowsheet (print)
+
+export async function getVentFlowsheet(encounterId: string) {
+  if (!/^[0-9a-f-]{36}$/.test(encounterId)) return null;
+  const all = await listVentilation();
+  const enc = all.find((e) => e.id === encounterId);
+  if (!enc) return null;
+  return run("clinical:read", async (c) => {
+    const p = await c.query<{ date_of_birth: string | null; sex: string | null; category: string }>(
+      "SELECT date_of_birth::text, sex, category FROM patient WHERE id = $1",
+      [enc.patient.id],
+    );
+    const t = await c.query<{ id: string; installed_at: Date; reason: string; by: string | null; voided_at: Date | null; void_reason: string | null }>(
+      `SELECT t.id, t.installed_at, t.reason, st.display_name AS by, t.voided_at, t.void_reason
+         FROM tubing_event t LEFT JOIN staff st ON st.id = t.performed_by
+        WHERE t.encounter_id = $1 ORDER BY t.installed_at`,
+      [encounterId],
+    );
+    return {
+      ...enc,
+      settings: [...enc.settings].reverse(), // oldest first, like a paper flowsheet
+      patientInfo: { dob: p.rows[0]?.date_of_birth ?? null, sex: p.rows[0]?.sex ?? null, category: p.rows[0]?.category ?? null },
+      tubing: t.rows.map((x) => ({
+        id: x.id,
+        atIso: iso(x.installed_at)!,
+        reason: x.reason,
+        by: x.by ?? "—",
+        voided: !!x.voided_at,
+        voidReason: x.void_reason,
+      })),
+      printedIso: getNow().toISOString(),
+    };
+  });
+}

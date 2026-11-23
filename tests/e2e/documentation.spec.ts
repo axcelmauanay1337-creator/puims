@@ -136,6 +136,16 @@ test.describe("ventilation and tubing (RT)", () => {
     await expect(sd).toBeHidden();
     await expect(v).toContainText("Volume control A/C · FiO₂ 40% · PEEP 5 · Vt 450 · RR 14");
 
+    await v.getByRole("link", { name: "Flowsheet" }).click();
+    await expect(page.getByRole("heading", { name: "Mechanical Ventilation Flowsheet" })).toBeVisible();
+    const fs = page.locator("table").first();
+    await expect(fs).toContainText("Volume control A/C");
+    await expect(fs.locator("tbody tr").first()).toContainText("450");
+    await expect(page.getByText("New circuit installed at hook-in")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Print flowsheet" })).toBeVisible();
+    await page.goto("/ventilation");
+    await page.getByRole("searchbox", { name: /Search Ventilator encounters/i }).fill(vent);
+
     await v.getByRole("button", { name: "Disconnect" }).click();
     const dd = page.getByRole("dialog");
     await dd.getByLabel(/^Reason/).selectOption("EXTUBATED");
