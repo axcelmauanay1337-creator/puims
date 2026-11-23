@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { expectedSlots, orderEnd, parsePrescribedTimes } from "@/lib/clinical/nebSlots";
+import { dosesFromFirst, expectedSlots, orderEnd, parsePrescribedTimes } from "@/lib/clinical/nebSlots";
 import { operationalDayWindow } from "@/lib/time/shifts";
 
 const manila = (iso: string) => new Date(`${iso}+08:00`);
@@ -50,5 +50,21 @@ describe("expected nebulization slots come only from the times written on the or
     expect(parsePrescribedTimes("8:00")).toMatchObject({ ok: false });
     expect(parsePrescribedTimes("24:00")).toMatchObject({ ok: false });
     expect(parsePrescribedTimes("12:60")).toMatchObject({ ok: false });
+  });
+});
+
+describe("dose times counted from the first dose", () => {
+  it("Q6H from 8:00 PM gives four times a day", () => {
+    expect(dosesFromFirst("Q6H", "20:00")).toEqual(["02:00", "08:00", "14:00", "20:00"]);
+  });
+  it("BID / TID / Q4H / Q12H", () => {
+    expect(dosesFromFirst("BID", "09:00")).toEqual(["09:00", "21:00"]);
+    expect(dosesFromFirst("TID", "06:30")).toEqual(["06:30", "14:30", "22:30"]);
+    expect(dosesFromFirst("Q4H", "00:00")).toEqual(["00:00", "04:00", "08:00", "12:00", "16:00", "20:00"]);
+    expect(dosesFromFirst("Q12H", "10:15")).toEqual(["10:15", "22:15"]);
+  });
+  it("PRN has no times; a bad first dose is rejected", () => {
+    expect(dosesFromFirst("PRN", "08:00")).toEqual([]);
+    expect(dosesFromFirst("Q6H", "8")).toBeNull();
   });
 });

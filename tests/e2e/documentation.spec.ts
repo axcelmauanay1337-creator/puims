@@ -27,22 +27,23 @@ test.describe("nebulization (RT)", () => {
     await page.getByLabel(/Order date\/time/).fill(manila(new Date(Date.now() - 3 * 3_600_000)).date);
     await page.getByLabel(/Attending physician/).fill("Dr. Demo E2E");
     await page.getByLabel(/Medication exactly as ordered/).fill(`Medication as written (synthetic) ${ref}`);
-    await page.getByLabel(/Frequency/).selectOption("ONCE");
+    await page.getByRole("radio", { name: "Q12H" }).click();
     // The current minute is always inside the current operational day and not in the future.
-    await page.getByLabel(/Times written on the order/).fill(manila(new Date()).hm);
+    await page.getByLabel(/First dose time/).fill(manila(new Date()).hm);
+    await expect(page.getByTestId("neb-dose-preview").locator("span")).toHaveCount(2);
     await page.getByLabel(/Order start/).fill(manila(new Date(Date.now() - 2 * 3_600_000)).date);
     await page.getByRole("button", { name: "Save order" }).click();
     await expect(page).toHaveURL(/\/nebulization$/);
     await page.getByRole("searchbox", { name: /Search Nebulization worklist/i }).fill(ref);
-    const row = page.locator("table").first().locator("tr").filter({ hasText: ref });
-    await expect(row).toHaveCount(1);
+    // Q12H from the current minute: this dose (Pending) and, if still today, the one 12 h later (Scheduled).
+    const row = page.locator("table").first().locator("tr").filter({ hasText: ref }).first();
     await expect(row).toContainText("Pending");
   });
 
   test("document the dose as given, then void it with a reason (the dose re-opens)", async ({ page }) => {
     await page.goto("/nebulization");
     await page.getByRole("searchbox", { name: /Search Nebulization worklist/i }).fill(ref);
-    const row = page.locator("table").first().locator("tr").filter({ hasText: ref });
+    const row = page.locator("table").first().locator("tr").filter({ hasText: ref }).first();
     await row.getByRole("button", { name: "Document" }).click();
     const dlg = page.getByRole("dialog");
     await expect(dlg.getByRole("radio", { name: "Given", exact: true })).toBeChecked();
@@ -62,7 +63,7 @@ test.describe("nebulization (RT)", () => {
   test("a not-given outcome requires a reason", async ({ page }) => {
     await page.goto("/nebulization");
     await page.getByRole("searchbox", { name: /Search Nebulization worklist/i }).fill(ref);
-    const row = page.locator("table").first().locator("tr").filter({ hasText: ref });
+    const row = page.locator("table").first().locator("tr").filter({ hasText: ref }).first();
     await row.getByRole("button", { name: "Document" }).click();
     const dlg = page.getByRole("dialog");
     await dlg.getByRole("radio", { name: "Refused" }).check();

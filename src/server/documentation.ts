@@ -1,6 +1,6 @@
 import "server-only";
 import { roleHas } from "@/lib/authz/permissions";
-import { expectedSlots, parsePrescribedTimes } from "@/lib/clinical/nebSlots";
+import { dosesFromFirst, expectedSlots, FREQUENCY_HOURS, parsePrescribedTimes } from "@/lib/clinical/nebSlots";
 import { FREQUENCY_PRESETS, REASON_REQUIRED_STATUSES, type NebulizationStatus } from "@/lib/clinical/vocabulary";
 import { AIRWAY_TYPES, DISCONNECT_REASONS, REQUIRED_VENT_NUMBERS, VENT_MODES, VENT_NUMBERS, type VentNumberKey } from "@/lib/clinical/vent";
 import { formatDateTime, HOSPITAL_TZ, parseIsoDate, zonedWallTimeToUtc } from "@/lib/time/zoned";
@@ -93,7 +93,10 @@ export interface NebOrderInput {
   prescriber: string;
   medicationAsOrdered: string;
   frequency: string;
+  /** Legacy/explicit times (e.g. "8:00 AM, 8:00 PM"); ignored when firstDose is given for a scheduled frequency. */
   prescribedTimes: string;
+  /** "HH:MM" — the first dose; the other times follow from the frequency (Q6H = every 6 hours). */
+  firstDose?: string;
   startAt: string; // Manila wall
   endAt: string; // Manila wall or ""
 }
@@ -117,7 +120,12 @@ export async function enterNebOrder(s: Session, input: NebOrderInput): Promise<W
   if (!prescriber || prescriber.length > 120) throw new ClinicalError("INVALID", "Attending physician is required (max 120 characters).");
   if (!medication || medication.length > 300) throw new ClinicalError("INVALID", "Medication as ordered is required (max 300 characters).");
   if (!(FREQUENCY_PRESETS as readonly string[]).includes(input.frequency)) throw new ClinicalError("INVALID", "Select a frequency.");
-  const times = parsePrescribedTimes(input.prescribedTimes);
+  let times = parsePrescribedTimes(input.prescribedTimes);
+  if (input.firstDose !== undefined && FREQUENCY_HOURS[input.frequency]) {
+    const derived = dosesFromFirst(input.frequency, input.firstDose);
+    if (!derived) throw new ClinicalError("INVALID", "Enter the first dose time.");
+    times = { ok: true, times: derived };
+  }
   if (!times.ok) throw new ClinicalError("INVALID", times.error);
   if (input.frequency === "PRN" && times.times.length) throw new ClinicalError("INVALID", "PRN orders have no scheduled times; document each dose when given.");
   const start = parseManilaWall(input.startAt);

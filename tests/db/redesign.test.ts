@@ -153,6 +153,13 @@ describe("neb order date/time from the chart", () => {
     const r = await o.query("SELECT order_reference, prescriber FROM neb_order WHERE id = $1", [id]);
     expect(r.rows[0]).toEqual({ order_reference: formatDateTime(ordered), prescriber: "Dr. Attending (synthetic)" });
     await expect(enterNebOrder(rt, { ...base, clientId: randomUUID(), orderReference: local(new Date(Date.now() + 3 * 3600_000)) })).rejects.toThrow(/future/);
+    const q6 = randomUUID();
+    await enterNebOrder(rt, { ...base, clientId: q6, orderReference: local(ordered), frequency: "Q6H", firstDose: "20:00" });
+    const t = await o.query("SELECT prescribed_times::text[] AS t FROM neb_order WHERE id = $1", [q6]);
+    expect(t.rows[0].t.map((x: string) => x.slice(0, 5))).toEqual(["02:00", "08:00", "14:00", "20:00"]);
+    await expect(enterNebOrder(rt, { ...base, clientId: randomUUID(), orderReference: local(ordered), frequency: "Q6H", firstDose: "" })).rejects.toThrow(
+      /first dose/,
+    );
   });
 });
 

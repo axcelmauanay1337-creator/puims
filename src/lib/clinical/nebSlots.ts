@@ -16,6 +16,24 @@ export interface OrderTiming {
 const H24_RE = /^([01]\d|2[0-3]):([0-5]\d)(?::00)?$/;
 const H12_RE = /^(\d{1,2})(?::([0-5]\d))?\s*(AM|PM|A\.M\.?|P\.M\.?|NN|MN)$/i;
 
+/** Frequencies offered when entering an order, and the interval in hours for the scheduled ones. */
+export const ORDER_FREQUENCIES = ["Q4H", "Q6H", "Q8H", "Q12H", "BID", "TID", "PRN"] as const;
+export const FREQUENCY_HOURS: Record<string, number> = { Q4H: 4, Q6H: 6, Q8H: 8, Q12H: 12, BID: 12, TID: 8 };
+
+/**
+ * Dose times for one day, counted from the first dose: Q6H from 8:00 PM → 02:00, 08:00, 14:00, 20:00.
+ * Returns [] for PRN or an unknown frequency, and null when the first-dose time is not valid.
+ */
+export function dosesFromFirst(frequency: string, firstDose: string): string[] | null {
+  const h = FREQUENCY_HOURS[frequency];
+  if (!h) return [];
+  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(firstDose.trim());
+  if (!m) return null;
+  const start = Number(m[1]);
+  const out = Array.from({ length: Math.round(24 / h) }, (_, i) => `${String((start + i * h) % 24).padStart(2, "0")}:${m[2]}`);
+  return [...new Set(out)].sort();
+}
+
 /** One written time → "HH:MM", or null. Accepts 8:00 AM, 8 PM, 8pm, 12 NN, 12 MN and 24-hour 20:00. */
 export function parseOneTime(text: string): string | null {
   const t = text.trim();

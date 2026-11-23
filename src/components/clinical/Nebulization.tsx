@@ -8,7 +8,7 @@ import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Modal } from "@/components/ui/Modal";
 import { Badge, StatusBadge } from "@/components/ui/primitives";
 import { FlagBoxes, FlagChips, type FlagsView } from "@/components/workspace/Flags";
-import { FREQUENCY_PRESETS } from "@/lib/clinical/vocabulary";
+import { dosesFromFirst, FREQUENCY_HOURS, ORDER_FREQUENCIES } from "@/lib/clinical/nebSlots";
 import { formatClock, formatDayTime, formatTime } from "@/lib/time/zoned";
 import type { NebRow } from "@/server/nebulization";
 import { Buttons, FormError, inputCls, labelCls, ManilaDateTime, manilaLocalOf, manilaNowLocal, PatientPicker, useClientId } from "./fields";
@@ -147,6 +147,83 @@ function ReasonDialog({
         <Buttons pending={pending} submit={submit} onCancel={onClose} />
       </form>
     </Modal>
+  );
+}
+
+/** One card per order with today's dose times as chips (tap an open time to document it). */
+export function NebOrderCards({ rows, canDocument }: { rows: NebRow[]; canDocument: boolean }) {
+  const [dose, setDose] = useState<DoseTarget | null>(null);
+  const byOrder = new Map<string, NebRow[]>();
+  for (const r of rows) {
+    if (!r.scheduledIso) continue;
+    const list = byOrder.get(r.orderId) ?? [];
+    list.push(r);
+    byOrder.set(r.orderId, list);
+  }
+  const cards = [...byOrder.values()].map((list) => list.sort((a, b) => Date.parse(a.scheduledIso!) - Date.parse(b.scheduledIso!)));
+  if (!cards.length)
+    return <p className="mb-6 rounded-[12px] border border-dashed border-line px-4 py-6 text-center text-[13px] text-ink-3">No scheduled doses today.</p>;
+  const tone = (r: NebRow) =>
+    r.status === "COMPLETED"
+      ? "bg-success-soft text-success"
+      : r.documented
+        ? "bg-warning-soft text-warning"
+        : r.status === "PENDING"
+          ? "bg-danger-soft text-danger"
+          : "bg-neutral-soft text-ink-2";
+  return (
+    <>
+      {dose && <DocumentDoseDialog target={dose} onClose={() => setDose(null)} />}
+      <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-2" data-testid="neb-order-cards">
+        {cards.map((list) => {
+          const o = list[0];
+          return (
+            <div key={o.orderId} className="flex min-w-0 flex-col gap-2 rounded-[14px] border border-line bg-surface p-4">
+              <div className="flex items-start justify-between gap-2">
+                <Link href={`/patients/${o.patient.id}`} className="min-w-0 truncate text-[15px] font-semibold hover:underline">
+                  {o.patient.name}
+                </Link>
+                <span className="shrink-0 text-[13px] text-ink-2">{o.patient.wardRoom ?? "—"}</span>
+              </div>
+              <span className="text-[14px]">
+                {o.medication} · <strong>{o.frequency}</strong>
+              </span>
+              <FlagChips flags={o.patient} />
+              <div className="flex flex-wrap gap-1.5">
+                {list.map((r) => {
+                  const label = `${formatTime(new Date(r.scheduledIso!))}${r.status === "COMPLETED" ? " ✓" : r.documented ? " ✕" : ""}`;
+                  const open = !r.documented && canDocument;
+                  return open ? (
+                    <button
+                      key={r.key}
+                      type="button"
+                      className={`tabular min-h-9 rounded-[8px] px-2.5 text-[13px] font-semibold ${tone(r)}`}
+                      aria-label={`Document ${o.medication} due ${label} for ${o.patient.name}`}
+                      onClick={() =>
+                        setDose({
+                          orderId: r.orderId,
+                          orderReference: r.orderReference,
+                          medication: r.medication,
+                          patient: r.patient.name,
+                          scheduledIso: r.scheduledIso,
+                          flags: r.patient,
+                        })
+                      }
+                    >
+                      {label}
+                    </button>
+                  ) : (
+                    <span key={r.key} className={`tabular inline-flex min-h-9 items-center rounded-[8px] px-2.5 text-[13px] font-semibold ${tone(r)}`}>
+                      {label}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </>
   );
 }
 
@@ -384,8 +461,9 @@ export function NewOrderForm({ initialPatient = null }: { initialPatient?: { id:
     orderReference: "",
     prescriber: "",
     medicationAsOrdered: "",
-    frequency: "",
+    frequency: "Q6H",
     prescribedTimes: "",
+    firstDose: "20:00",
     startAt: manilaNowLocal(),
     endAt: "",
   });
@@ -393,6 +471,10 @@ export function NewOrderForm({ initialPatient = null }: { initialPatient?: { id:
   const [pending, setPending] = useState(false);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setF((x) => ({ ...x, [k]: e.target.value }));
+  const hours = FREQUENCY_HOURS[f.frequency];
+  const preview = f.frequency === "PRN" ? null : (dosesFromFirst(f.frequency, f.firstDose) ?? []);
+  // Show the expected doses in the order they come, starting from the first dose.
+  const ordered = preview ? [...preview.filter((t) => t >= f.firstDose), ...preview.filter((t) => t < f.firstDose)] : null;
   return (
     <form
       className="max-w-2xl space-y-4 rounded-[10px] border border-line bg-surface p-5"
@@ -428,34 +510,55 @@ export function NewOrderForm({ initialPatient = null }: { initialPatient?: { id:
           Medication exactly as ordered <span className="text-danger">*</span>
           <textarea className={`${inputCls} py-2`} rows={2} value={f.medicationAsOrdered} onChange={set("medicationAsOrdered")} maxLength={300} required />
         </label>
-        <label className={labelCls}>
-          Frequency <span className="text-danger">*</span>
-          <select className={inputCls} value={f.frequency} onChange={set("frequency")} required>
-            <option value="">Select…</option>
-            {FREQUENCY_PRESETS.map((x) => (
-              <option key={x} value={x}>
+        <fieldset className="sm:col-span-2">
+          <legend className={labelCls}>
+            Frequency <span className="text-danger">*</span>
+          </legend>
+          <div className="mt-1.5 flex flex-wrap gap-2" role="radiogroup" aria-label="Frequency">
+            {ORDER_FREQUENCIES.map((x) => (
+              <button
+                key={x}
+                type="button"
+                role="radio"
+                aria-checked={f.frequency === x}
+                onClick={() => setF((v) => ({ ...v, frequency: x }))}
+                className={`min-h-10 rounded-full border px-4 text-[14px] font-semibold ${
+                  f.frequency === x ? "border-accent bg-accent text-white" : "border-line bg-surface hover:bg-hover"
+                }`}
+              >
                 {x}
-              </option>
+              </button>
             ))}
-          </select>
-        </label>
-        <label className={labelCls}>
-          Times written on the order <span className="font-normal text-ink-3">(e.g. 8:00 AM, 2:00 PM, 8:00 PM)</span>
-          <input
-            className={inputCls}
-            value={f.prescribedTimes}
-            onChange={set("prescribedTimes")}
-            disabled={f.frequency === "PRN"}
-            placeholder={f.frequency === "PRN" ? "Not applicable for PRN" : "8:00 AM, 2:00 PM, 8:00 PM"}
-          />
-        </label>
+          </div>
+        </fieldset>
+        {f.frequency !== "PRN" ? (
+          <label className={labelCls}>
+            First dose time <span className="text-danger">*</span>
+            <input type="time" className={inputCls} value={f.firstDose} onChange={set("firstDose")} required aria-describedby="neb-dose-preview" />
+          </label>
+        ) : null}
+        <div id="neb-dose-preview" className="flex flex-col gap-2 rounded-[12px] bg-info-soft px-3.5 py-3 text-info sm:col-span-2" aria-live="polite">
+          <strong className="text-[13px]">Doses this order will expect (every 24 h)</strong>
+          <div className="flex flex-wrap gap-1.5" data-testid="neb-dose-preview">
+            {ordered === null ? (
+              <span className="rounded-[8px] bg-surface px-2.5 py-1.5 text-[13px] font-semibold">As needed, no fixed times</span>
+            ) : (
+              ordered.map((t) => (
+                <span key={t} className="tabular rounded-[8px] bg-surface px-2.5 py-1.5 text-[13px] font-semibold">
+                  {formatClock(t)}
+                </span>
+              ))
+            )}
+          </div>
+          <span className="text-[12px]">
+            {f.frequency === "PRN"
+              ? "PRN doses are documented only when given."
+              : `${f.frequency} = every ${hours} hours, counted from the first dose. Each time becomes a task on Today when it is due; a dose is never marked done by itself.`}
+          </span>
+        </div>
         <ManilaDateTime label="Order start" value={f.startAt} onChange={(v) => setF((x) => ({ ...x, startAt: v }))} required />
         <ManilaDateTime label="Order end (optional)" value={f.endAt} onChange={(v) => setF((x) => ({ ...x, endAt: v }))} />
       </div>
-      <p className="rounded-[7px] bg-neutral-soft px-3 py-2 text-[12px] text-ink-2">
-        PUIMS never works out dose times from the frequency. Only the times you copy from the order become expected doses; if none are written, doses are
-        documented as they are given.
-      </p>
       <FormError error={error} />
       <div className="flex gap-2">
         <button
