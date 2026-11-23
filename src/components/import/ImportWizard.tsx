@@ -155,7 +155,7 @@ export function OptionsForm({ batchId, options, disabled }: { batchId: string; o
           <option value="">Not declared — flag empty cells</option>
           <option value="OPD">OPD</option>
           <option value="INP">INP</option>
-          <option value="OTHER">Other</option>
+          <option value="OTHER">Other / not stated</option>
         </select>
       </label>
       <div className="sm:col-span-2">
@@ -406,7 +406,7 @@ function ReviewDialog({ row, onClose }: { row: ImportRowView; onClose: () => voi
                 <option value="">— keep parsed value —</option>
                 <option value="OPD">OPD</option>
                 <option value="INP">INP</option>
-                <option value="OTHER">Other</option>
+                <option value="OTHER">Other / not stated</option>
               </select>
             ) : (
               <input

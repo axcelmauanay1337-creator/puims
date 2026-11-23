@@ -115,7 +115,7 @@ export function PatientForm({ mode, initial }: { mode: "register" | "correct"; i
             <option value="">Select…</option>
             <option value="OPD">OPD</option>
             <option value="INP">INP</option>
-            <option value="OTHER">Other</option>
+            <option value="OTHER">Other / not stated</option>
           </select>
           <Err msg={errors.category} />
         </label>

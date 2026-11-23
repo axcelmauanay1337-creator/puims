@@ -56,7 +56,7 @@ function Brand({ compact }: { compact: boolean }) {
 }
 
 /** Desktop: full sidebar. Tablet: icon rail. Phone: hidden (drawer below). */
-export function Sidebar({ groups }: { groups: NavGroup[] }) {
+export function Sidebar({ groups, nonClinical }: { groups: NavGroup[]; nonClinical: boolean }) {
   return (
     <>
       <aside className="no-print sticky top-0 hidden h-dvh w-16 shrink-0 flex-col border-r border-line bg-sidebar md:flex lg:hidden" aria-label="Sidebar">
@@ -70,7 +70,7 @@ export function Sidebar({ groups }: { groups: NavGroup[] }) {
           Respiratory Therapy
         </div>
         <NavList groups={groups} compact={false} />
-        <p className="border-t border-line px-4 py-3 text-[11px] text-ink-3">Not validated for clinical use · Synthetic data</p>
+        {nonClinical && <p className="border-t border-line px-4 py-3 text-[11px] text-ink-3">Not validated for clinical use · Synthetic data</p>}
       </aside>
       <MobileDrawer groups={groups} />
     </>

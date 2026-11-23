@@ -103,7 +103,7 @@ export async function DiagnosticsPage({
               <option value="">Any</option>
               <option value="OPD">OPD</option>
               <option value="INP">INP</option>
-              <option value="OTHER">Other</option>
+              <option value="OTHER">Other / not stated</option>
             </select>
           </label>
           <label className="text-[12px] font-medium text-ink-2">

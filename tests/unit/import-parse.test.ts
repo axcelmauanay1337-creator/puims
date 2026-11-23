@@ -125,7 +125,7 @@ describe("status and category", () => {
   it("uses a declared category only for empty cells", () => {
     expect(parseCategory(s("opd"), opts()).category).toBe("OPD");
     expect(parseCategory(s("In-patient"), opts()).category).toBe("INP");
-    expect(parseCategory(null, opts()).flags).toEqual(["CATEGORY_MISSING"]);
+    expect(parseCategory(null, opts())).toEqual({ category: "OTHER", flags: ["CATEGORY_MISSING"] });
     expect(parseCategory(null, opts({ categoryWhenMissing: "OPD" }))).toEqual({ category: "OPD", flags: ["CATEGORY_FROM_DECLARATION"] });
     expect(parseCategory(s("ER"), opts({ categoryWhenMissing: "OPD" })).flags).toEqual(["CATEGORY_UNKNOWN"]);
   });
@@ -201,7 +201,8 @@ describe("row parsing", () => {
       expect.arrayContaining(["DATE_AMBIGUOUS", "TIME_NO_MERIDIEM", "NAME_MISSING", "STATUS_UNKNOWN", "CATEGORY_MISSING", "PROCEDURE_MISSING"]),
     );
     const e1 = effectiveRow(bad.parsed, bad.flags, { date: "2025-06-03", time: "08:00" });
-    expect(e1.blocking).toEqual(expect.arrayContaining(["NAME_MISSING", "STATUS_UNKNOWN", "CATEGORY_MISSING", "PROCEDURE_MISSING"]));
+    expect(e1.blocking).toEqual(expect.arrayContaining(["NAME_MISSING", "STATUS_UNKNOWN", "PROCEDURE_MISSING"]));
+    expect(e1.blocking).not.toContain("CATEGORY_MISSING");
     expect(e1.blocking).not.toContain("DATE_AMBIGUOUS");
     const e2 = effectiveRow(bad.parsed, bad.flags, {
       date: "2025-06-03",

@@ -112,7 +112,7 @@ function BookDialog({
           <div className="mt-1 flex gap-2">
             {(["OPD", "INP", "OTHER"] as const).map((c) => (
               <label key={c} className="flex min-h-10 items-center gap-1.5 rounded-[7px] border border-line px-3 text-[13px]">
-                <input type="radio" name="cat" checked={category === c} onChange={() => setCategory(c)} /> {c === "OTHER" ? "Other" : c}
+                <input type="radio" name="cat" checked={category === c} onChange={() => setCategory(c)} /> {c === "OTHER" ? "Other / not stated" : c}
               </label>
             ))}
           </div>
@@ -571,7 +571,7 @@ function EditDialog({ id, edit, onClose }: { id: string; edit: EditableDetails; 
           <div className="mt-1 flex gap-2">
             {(["OPD", "INP", "OTHER"] as const).map((c) => (
               <label key={c} className="flex min-h-10 items-center gap-1.5 rounded-[7px] border border-line px-3 text-[13px]">
-                <input type="radio" name="edit-cat" checked={category === c} onChange={() => setCategory(c)} /> {c === "OTHER" ? "Other" : c}
+                <input type="radio" name="edit-cat" checked={category === c} onChange={() => setCategory(c)} /> {c === "OTHER" ? "Other / not stated" : c}
               </label>
             ))}
           </div>

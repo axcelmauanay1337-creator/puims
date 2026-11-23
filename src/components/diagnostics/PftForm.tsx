@@ -34,7 +34,7 @@ const SECTION_LABEL: Record<string, string> = {
   OBSERVATION: "Patient observation",
   INTERPRETATION: "Interpretation",
   SIGNATURES: "Signatures",
-  OTHER: "Other",
+  OTHER: "Other / not stated",
 };
 
 /** One "Label: value" cell of the paper form; empty values print as a blank line to write on. */

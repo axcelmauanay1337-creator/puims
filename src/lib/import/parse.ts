@@ -88,7 +88,7 @@ export const FLAG_INFO = {
   AGE_SEX_UNCERTAIN: { blocking: false, field: null, label: "Age/sex could not be normalized (raw value kept)" },
   STATUS_MISSING: { blocking: true, field: "status", label: "Status is empty" },
   STATUS_UNKNOWN: { blocking: true, field: "status", label: "Status not recognized" },
-  CATEGORY_MISSING: { blocking: true, field: "category", label: "OPD/INP is empty" },
+  CATEGORY_MISSING: { blocking: false, field: "category", label: "OPD/INP not stated — saved as “Other / not stated” (correct later if known)" },
   CATEGORY_UNKNOWN: { blocking: true, field: "category", label: "OPD/INP not recognized" },
   CATEGORY_FROM_DECLARATION: { blocking: false, field: "category", label: "OPD/INP taken from the reviewer's declaration" },
   PROCEDURE_MISSING: { blocking: true, field: "procedure", label: "Procedure is empty" },
@@ -402,7 +402,7 @@ export function parseCategory(c: RawCell | null | undefined, opts: ImportOptions
   if (!cellText(c))
     return opts.categoryWhenMissing
       ? { category: opts.categoryWhenMissing, flags: ["CATEGORY_FROM_DECLARATION"] }
-      : { category: null, flags: ["CATEGORY_MISSING"] };
+      : { category: "OTHER", flags: ["CATEGORY_MISSING"] };
   if (/^(OPD|OUT ?PATIENT|OUT|OP)$/.test(t)) return { category: "OPD", flags: [] };
   if (/^(INP|IN ?PATIENT|IN|IP|ADMITTED|WARD)$/.test(t)) return { category: "INP", flags: [] };
   return { category: null, flags: ["CATEGORY_UNKNOWN"] };

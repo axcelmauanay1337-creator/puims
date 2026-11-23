@@ -28,7 +28,7 @@ export async function AppShell({ session, children }: { session: Session; childr
           Skip to content
         </a>
         <div className="flex min-h-dvh">
-          <Sidebar groups={groups} />
+          <Sidebar groups={groups} nonClinical={nonClinical} />
           <div className="flex min-w-0 flex-1 flex-col">
             {nonClinical && (
               <div className="no-print border-b border-[#f0dfbf] bg-warning-soft px-4 py-1.5 text-center text-[11px] font-medium text-warning" role="note">
