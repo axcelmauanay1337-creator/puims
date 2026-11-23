@@ -70,7 +70,7 @@ export async function inviteStaff(s: AuthedSession, input: { username: string; d
 export async function resetAccess(s: AuthedSession, staffId: string): Promise<{ token: string }> {
   if (staffId === s.staffId) throw new AdminError("INVALID", "You cannot reset your own access here.");
   return asChief(s, async (c) => {
-    const r = await c.query<{ role: string }>("SELECT role FROM staff WHERE id = $1 FOR UPDATE", [staffId]);
+    const r = await c.query<{ role: string; status: string }>("SELECT role, status FROM staff WHERE id = $1 FOR UPDATE", [staffId]);
     if (!r.rows[0]) throw new AdminError("NOT_FOUND", "Staff member not found.");
     if (r.rows[0].role !== "RESPIRATORY_THERAPIST") throw new AdminError("FORBIDDEN", "Only RT accounts can be reset here.");
     await c.query("UPDATE auth_session SET revoked_at = now(), revoked_reason = 'access reset' WHERE staff_id = $1 AND revoked_at IS NULL", [staffId]);
@@ -79,8 +79,10 @@ export async function resetAccess(s: AuthedSession, staffId: string): Promise<{ 
       [staffId],
     );
     await c.query("UPDATE staff SET status = 'INVITED', deactivated_at = NULL, deactivated_by = NULL WHERE id = $1", [staffId]);
-    const token = await issueToken(c, staffId, "RESET", s.staffId);
-    await audit(c, "admin.access_reset", undefined, { table: "staff", id: staffId });
+    // An account that was never activated gets a first-time activation link, not a "reset".
+    const firstTime = r.rows[0].status === "INVITED";
+    const token = await issueToken(c, staffId, firstTime ? "ACTIVATE" : "RESET", s.staffId);
+    await audit(c, firstTime ? "admin.activation_link_issued" : "admin.access_reset", undefined, { table: "staff", id: staffId });
     return { token };
   });
 }

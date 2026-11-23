@@ -141,6 +141,14 @@ describe("Chief RT administration", () => {
     expect(await beginActivation(token)).not.toBeNull();
   });
 
+  it("an account added but never activated gets a first-time activation link", async () => {
+    const golf = (await o.query("SELECT id FROM staff WHERE username = 'rt.golf'")).rows[0].id; // seeded INVITED
+    const { token } = await resetAccess(chief.session, golf);
+    expect((await beginActivation(token))?.purpose).toBe("ACTIVATE");
+    expect(await completeActivation(token, "quiet river copper evening")).toEqual({ ok: true });
+    expect((await loginWithPassword("rt.golf", "quiet river copper evening", meta)).ok).toBe(true);
+  });
+
   it("the Chief RT cannot deactivate or reset themself", async () => {
     await expect(deactivateStaff(chief.session, chief.session.staffId)).rejects.toMatchObject({ kind: "INVALID" });
     await expect(resetAccess(chief.session, chief.session.staffId)).rejects.toMatchObject({ kind: "INVALID" });

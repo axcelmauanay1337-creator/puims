@@ -151,12 +151,13 @@ export function StaffAdmin({ rows, selfId }: { rows: StaffRowView[]; selfId: str
                           type="button"
                           disabled={busy}
                           onClick={async () => {
-                            if (!confirm(`Reset access for ${s.displayName}? Their password is cleared and all sessions end.`)) return;
+                            if (s.accountStatus !== "INVITED" && !confirm(`Reset access for ${s.displayName}? Their password is cleared and all sessions end.`))
+                              return;
                             setRowResult({ id: s.id, r: await run(() => resetAccessAction(s.id)) });
                           }}
                           className="min-h-8 rounded-[7px] border border-line px-2 text-[12px] hover:bg-hover"
                         >
-                          {s.accountStatus === "DEACTIVATED" ? "Reinstate (new link)" : "Reset access"}
+                          {s.accountStatus === "DEACTIVATED" ? "Reinstate (new link)" : s.accountStatus === "INVITED" ? "Get activation link" : "Reset access"}
                         </button>
                         {s.accountStatus !== "DEACTIVATED" && (
                           <button

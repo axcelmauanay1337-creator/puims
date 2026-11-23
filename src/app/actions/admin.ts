@@ -53,7 +53,7 @@ export async function resetAccessAction(staffId: string): Promise<AdminResult> {
       return {
         ok: true,
         link: await activationLink(token),
-        message: "Access reset. All their sessions were ended. They must set a new password with this link.",
+        message: "Activation link ready (valid 72 hours, one use). Send it to the RT; they set their own password with it. Any earlier link stops working.",
       };
     },
     ["/staff"],
