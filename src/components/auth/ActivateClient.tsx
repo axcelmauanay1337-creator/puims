@@ -13,7 +13,7 @@ import { Field, FormError, SubmitButton } from "./Field";
  */
 export function ActivateClient() {
   const tokenRef = useRef<string>("");
-  const [view, setView] = useState<ActivationView | "loading" | "missing">("loading");
+  const [view, setView] = useState<ActivationView | "loading" | "missing" | "unavailable">("loading");
   const [errors, setErrors] = useState<{ error?: string; problems?: string[] }>({});
   const [pending, setPending] = useState(false);
   const [done, setDone] = useState(false);
@@ -29,10 +29,16 @@ export function ActivateClient() {
       queueMicrotask(() => setView("missing"));
       return;
     }
+    check();
+  }, []);
+
+  // A server/database outage must not be shown as an invalid link: the link is still good.
+  function check() {
+    setView("loading");
     startActivationAction(tokenRef.current)
       .then((v) => setView(v.ok ? v : "missing"))
-      .catch(() => setView("missing"));
-  }, []);
+      .catch(() => setView("unavailable"));
+  }
 
   if (done) {
     return (
@@ -49,6 +55,22 @@ export function ActivateClient() {
     );
   }
   if (view === "loading") return <p className="text-[13px] text-ink-2">Checking your activation link…</p>;
+  if (view === "unavailable")
+    return (
+      <div role="alert">
+        <h1 className="text-[20px] font-semibold">PUIMS can&apos;t be reached right now</h1>
+        <p className="mb-4 mt-1 text-[13px] text-ink-2">
+          Your activation link is still valid. Keep this page open and try again in a few minutes.
+        </p>
+        <button
+          type="button"
+          onClick={check}
+          className="inline-flex min-h-10 items-center rounded-[var(--radius-control)] bg-accent px-4 text-[14px] font-semibold text-white hover:bg-accent-hover"
+        >
+          Try again
+        </button>
+      </div>
+    );
   if (view === "missing")
     return (
       <div>
