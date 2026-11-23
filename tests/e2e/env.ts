@@ -14,5 +14,5 @@ export function loadEnv(): Record<string, string> {
 }
 
 export const AUTH_DIR = "test-results/.auth";
-export const STATE = { chief: `${AUTH_DIR}/chief.json`, rt: `${AUTH_DIR}/rt.json`, steps: `${AUTH_DIR}/totp-steps` };
+export const STATE = { chief: `${AUTH_DIR}/chief.json`, rt: `${AUTH_DIR}/rt.json` };
 export const USERS = { chief: "chief.demo", rt: "rt.bravo" } as const;

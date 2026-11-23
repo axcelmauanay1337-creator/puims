@@ -6,7 +6,7 @@
  *
  * Prints a one-time activation link (valid 72 h). The link is not stored —
  * only its SHA-256 hash. Deliver it to the Chief RT through a trusted channel;
- * they set their own password and enrol their authenticator app.
+ * they set their own password.
  */
 import pg from "pg";
 import { randomToken, sha256Hex, USERNAME_RE } from "../src/lib/auth/tokens";

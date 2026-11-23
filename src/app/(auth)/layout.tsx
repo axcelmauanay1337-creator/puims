@@ -21,7 +21,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
             </span>
           </div>
           {children}
-          <p className="mt-6 text-[11px] text-ink-3">Individual accounts only. Never share your password or authenticator. All access is audited.</p>
+          <p className="mt-6 text-[11px] text-ink-3">Individual accounts only. Never share your password. All access is audited.</p>
         </div>
       </main>
     </div>

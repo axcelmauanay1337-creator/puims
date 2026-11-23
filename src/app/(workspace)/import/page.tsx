@@ -20,7 +20,7 @@ const STEPS = [
     "Every row needs a decision. Flagged values are corrected by you from the source; possible duplicates and name matches need an explicit patient choice.",
   ],
   ["Dry run", "See exactly what would be created, and download the exception report (sheet and row numbers only, no patient values)."],
-  ["Commit", "Confirm with your password and authenticator. One appointment per accepted row; the batch can be reversed as a unit."],
+  ["Commit", "Confirm with your password. One appointment per accepted row; the batch can be reversed as a unit."],
 ];
 
 const STATUS_TONE = { STAGED: "warning", COMMITTED: "success", VOIDED: "neutral", DISCARDED: "neutral" } as const;

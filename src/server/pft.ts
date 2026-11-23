@@ -11,7 +11,7 @@ import type { Session } from "./session";
  * Milestone 5 — the PFT form (form AS-PUL-PFT-006 section structure) as the OFFICIAL clinical record
  * (decision 2026-11-22, U-10). Lifecycle, enforced again by triggers in migration 0007:
  *
- *   DRAFT ──(author RT signs: password + authenticator)──▶ RT_SIGNED ──(RT records the pulmonologist's
+ *   DRAFT ──(author RT signs: password)──▶ RT_SIGNED ──(RT records the pulmonologist's
  *   sign-off on the printed copy + types their interpretation; step-up)──▶ FINAL ──▶ amendments only
  *
  * Nothing is auto-filled into narrative sections, nothing is auto-signed, and interpretation is only
@@ -21,7 +21,7 @@ import type { Session } from "./session";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
-/** `stepUp` documents (at call sites) that the action required a fresh password + authenticator check. */
+/** `stepUp` documents (at call sites) that the action required a fresh password check. */
 function as<T>(s: Session, fn: (c: Tx) => Promise<T>, stepUp = false): Promise<T> {
   void stepUp;
   return tx({ staffId: s.staffId, sessionId: s.sessionId, deviceId: s.deviceId }, fn);
@@ -33,7 +33,7 @@ function requireChief(s: Session) {
   if (s.role !== "CHIEF_RT_ADMIN") throw new ClinicalError("FORBIDDEN", "Only the Chief RT can do this.");
 }
 function requireReauth(s: Session) {
-  if (!hasRecentReauth(s)) throw new ClinicalError("REAUTH_REQUIRED", "Confirm your password and authenticator code to sign.");
+  if (!hasRecentReauth(s)) throw new ClinicalError("REAUTH_REQUIRED", "Confirm your password to sign.");
 }
 const text = (v: unknown, max: number, label: string): string | null => {
   const t = typeof v === "string" ? v.replace(/\r\n/g, "\n").trim() : "";

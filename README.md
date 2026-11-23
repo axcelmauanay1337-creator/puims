@@ -2,7 +2,7 @@
 
 Notion-style clinical workspace for Respiratory Therapists: patient masterlist, shifts and handover, nebulization, mechanical ventilation, change of tubing tracking, PFT / ABG / sputum induction, reports, import, audit.
 
-> **Status: Milestones 0–8 built and tested — not for clinical use.** All 16 modules work end to end on synthetic data: accounts with authenticator, row-level security, append-only audit, patients, shifts and handover, nebulization / ventilation / tubing documentation, PFT / ABG / sputum-induction scheduling, the PFT form as the official record, the workbook import wizard, reports with audited exports, and an interim offline capture design (off by default). What remains is the hospital's: approvals, real-data decisions and clinical UAT — see `docs/PRODUCTION_READINESS_CHECKLIST.md`. Do not load real patient data until hospital IT, DPO/privacy and clinical governance approve it.
+> **Status: Milestones 0–8 built and tested — not for clinical use.** All 16 modules work end to end on synthetic data: password accounts, row-level security, append-only audit, patients, shifts and handover, nebulization / ventilation / tubing documentation, PFT / ABG / sputum-induction scheduling, the PFT form as the official record, the workbook import wizard, reports with audited exports, and an interim offline capture design (off by default). What remains is the hospital's: approvals, real-data decisions and clinical UAT — see `docs/PRODUCTION_READINESS_CHECKLIST.md`. Do not load real patient data until hospital IT, DPO/privacy and clinical governance approve it.
 
 ## Run it for real (your own machine)
 
@@ -22,7 +22,7 @@ npm run setup      # creates .env.local with fresh secrets, starts PostgreSQL in
 npm run dev        # then open http://localhost:3000
 ```
 
-`npm run setup` prints the sign-in details. Accounts: `chief.demo` (Chief RT) and `rt.alpha` … `rt.echo` (RTs). For the authenticator code run `npm run dev:totp -- chief.demo` in a second terminal (or add the secret from `.seed-credentials.json` to an authenticator app). If port 5432 is taken: `npm run setup -- --port 5433`. Already have PostgreSQL 16 locally (Linux, sudo)? `npm run setup -- --native`. Stop the database with `npm run db:down`.
+`npm run setup` prints the sign-in details. Accounts: `chief.demo` (Chief RT) and `rt.alpha` … `rt.echo` (RTs). Sign in with the password `npm run setup` prints.
 
 ## Scripts
 
@@ -30,7 +30,7 @@ npm run dev        # then open http://localhost:3000
 | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | `npm run dev` / `npm run build` / `npm start`                 | Develop / build / serve                                                                  |
 | `npm run lint` · `npm run typecheck` · `npm run format:check` | Static checks                                                                            |
-| `npm test`                                                    | Unit tests (time rules, tubing, metrics, TOTP RFC vectors, password policy, crypto)      |
+| `npm test`                                                    | Unit tests (time rules, tubing, metrics, password policy, crypto)                        |
 | `npm run test:db`                                             | PostgreSQL tests: RLS, audit, constraints, auth, every clinical workflow (`TEST_*` URLs) |
 | `npm run test:e2e`                                            | Playwright + axe against a production build and the test DB, with real sign-in           |
 | `npm run verify`                                              | Everything, in CI order                                                                  |
@@ -42,7 +42,7 @@ npm run dev        # then open http://localhost:3000
 
 ## Configuration
 
-See `.env.example`. Key variables: `DATABASE_URL` (least-privileged app role), `MIGRATION_DATABASE_URL` (owner; migrations/backups only), `PUIMS_DATA_KEY` (encrypts authenticator secrets; keep outside DB backups), `PUIMS_DEPLOYMENT_PROFILE` (`development` · `uat` · `lan` · `cloud`), `PUIMS_PUBLIC_URL`.
+See `.env.example`. Key variables: `DATABASE_URL` (least-privileged app role), `MIGRATION_DATABASE_URL` (owner; migrations/backups only), `PUIMS_DATA_KEY` (encrypts offline lease keys and retained originals; keep outside DB backups), `PUIMS_DEPLOYMENT_PROFILE` (`development` · `uat` · `lan` · `cloud`), `PUIMS_PUBLIC_URL`.
 
 ## Privacy rules for contributors
 

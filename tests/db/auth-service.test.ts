@@ -1,6 +1,5 @@
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { totpStep } from "@/lib/auth/totp";
 import { AdminError, deactivateStaff, inviteStaff, resetAccess, revokeDevice, updateSetting } from "@/server/auth/admin";
 import {
   beginActivation,
@@ -10,38 +9,28 @@ import {
   loginWithPassword,
   reauthenticate,
   revokeSessionByToken,
-  verifyLoginMfa,
   type AuthedSession,
 } from "@/server/auth/service";
 import { getPool } from "@/server/db";
-import { freshCode, owner, seedAccounts, reseed } from "./helpers";
+import { owner, reseed } from "./helpers";
 
 const PW = process.env.PUIMS_SEED_PASSWORD!;
 const meta = { ip: null, userAgent: "vitest", deviceId: null };
-let accounts: ReturnType<typeof seedAccounts>;
-const lastStep: Record<string, number | null> = {};
 let o: pg.Client;
 
-/** Full sign-in (password + fresh TOTP). Returns the session token and session. */
+/** Full sign-in (password). Returns the session token and session. */
 async function signIn(username: string, deviceId: string | null = null) {
   const p = await loginWithPassword(username, PW, { ...meta, deviceId });
-  if (!p.ok) throw new Error(`password step failed for ${username}: ${p.reason}`);
-  const { code, step } = await freshCode(accounts[username].totpSecret, lastStep[username] ?? null);
-  const m = await verifyLoginMfa(p.pendingToken, code);
-  if (!m.ok) throw new Error(`mfa failed for ${username}`);
-  lastStep[username] = step;
-  return { token: p.pendingToken, deviceId: p.deviceId, session: (await getAuthedSession(p.pendingToken))! };
+  if (!p.ok) throw new Error(`sign-in failed for ${username}: ${p.reason}`);
+  return { token: p.sessionToken, deviceId: p.deviceId, session: (await getAuthedSession(p.sessionToken))! };
 }
 
-async function reauth(s: AuthedSession, username: string) {
-  const { code, step } = await freshCode(accounts[username].totpSecret, lastStep[username] ?? null);
-  lastStep[username] = step;
-  return { ok: await reauthenticate(s, PW, code), session: { ...s, reauthAt: new Date() } };
+async function reauth(s: AuthedSession) {
+  return { ok: await reauthenticate(s, PW), session: { ...s, reauthAt: new Date() } };
 }
 
 beforeAll(async () => {
   reseed();
-  accounts = seedAccounts();
   o = owner();
   await o.connect();
 });
@@ -51,7 +40,7 @@ afterAll(async () => {
 });
 
 describe("sign-in", () => {
-  it("password + TOTP yields a session; the session cookie token is never stored in clear", async () => {
+  it("the correct password yields a session; the session cookie token is never stored in clear", async () => {
     const { token, session } = await signIn("rt.alpha");
     expect(session.username).toBe("rt.alpha");
     expect(session.role).toBe("RESPIRATORY_THERAPIST");
@@ -59,10 +48,12 @@ describe("sign-in", () => {
     expect(leaked.rows[0].n).toBe(0);
   });
 
-  it("a password-only (pending MFA) token is not a usable session", async () => {
-    const p = await loginWithPassword("rt.bravo", PW, meta);
-    expect(p.ok).toBe(true);
-    if (p.ok) expect(await getAuthedSession(p.pendingToken)).toBeNull();
+  it("a successful sign-in is audited and clears earlier failures", async () => {
+    await loginWithPassword("rt.bravo", "wrong-password-123", meta);
+    await signIn("rt.bravo");
+    const r = await o.query("SELECT failed_attempts FROM auth_credential c JOIN staff s ON s.id = c.staff_id WHERE s.username = 'rt.bravo'");
+    expect(r.rows[0].failed_attempts).toBe(0);
+    expect((await o.query("SELECT count(*)::int AS n FROM audit_log WHERE action = 'auth.login'")).rows[0].n).toBeGreaterThan(0);
   });
 
   it("unknown user and wrong password give the same generic result", async () => {
@@ -73,16 +64,6 @@ describe("sign-in", () => {
   it("INVITED and DEACTIVATED accounts cannot sign in", async () => {
     expect((await loginWithPassword("rt.golf", PW, meta)).ok).toBe(false); // seeded INVITED
     expect((await loginWithPassword("rt.foxtrot", PW, meta)).ok).toBe(false); // seeded DEACTIVATED
-  });
-
-  it("a TOTP code cannot be replayed", async () => {
-    const first = await loginWithPassword("rt.charlie", PW, meta);
-    const second = await loginWithPassword("rt.charlie", PW, meta);
-    if (!first.ok || !second.ok) throw new Error("password step failed");
-    const { code, step } = await freshCode(accounts["rt.charlie"].totpSecret, lastStep["rt.charlie"] ?? null);
-    lastStep["rt.charlie"] = step;
-    expect((await verifyLoginMfa(first.pendingToken, code)).ok).toBe(true);
-    expect(await verifyLoginMfa(second.pendingToken, code)).toEqual({ ok: false, reason: "invalid" });
   });
 
   it(`locks the account after ${LOCKOUT_THRESHOLD} failures — even the correct password is then refused`, async () => {
@@ -113,20 +94,18 @@ describe("Chief RT administration", () => {
   });
 
   it("re-authentication with a wrong password fails", async () => {
-    const { code, step } = await freshCode(accounts["chief.demo"].totpSecret, lastStep["chief.demo"] ?? null);
-    lastStep["chief.demo"] = step;
-    expect(await reauthenticate(chief.session, "not-the-password", code)).toBe(false);
+    expect(await reauthenticate(chief.session, "not-the-password")).toBe(false);
   });
 
   it("an RT cannot use admin functions even with a fresh re-auth", async () => {
     const rt = await signIn("rt.bravo");
-    const { session } = await reauth(rt.session, "rt.bravo");
+    const { session } = await reauth(rt.session);
     await expect(inviteStaff(session, { username: "rt.x", displayName: "X" })).rejects.toMatchObject({ kind: "FORBIDDEN" });
     await expect(updateSetting(session, "tubing.interval_days", "5")).rejects.toMatchObject({ kind: "FORBIDDEN" });
   });
 
-  it("invite → activate (weak password refused, wrong code refused) → sign in", async () => {
-    const r = await reauth(chief.session, "chief.demo");
+  it("invite → activate (weak password refused) → sign in", async () => {
+    const r = await reauth(chief.session);
     expect(r.ok).toBe(true);
     chief.session = r.session;
     const { token } = await inviteStaff(chief.session, { username: "rt.newcomer", displayName: "Newcomer Synthetic" });
@@ -136,19 +115,15 @@ describe("Chief RT administration", () => {
     expect(info?.username).toBe("rt.newcomer");
     expect(await beginActivation("not-a-real-token")).toBeNull();
 
-    const weak = await completeActivation(token, "password123", "000000");
+    const weak = await completeActivation(token, "password123");
     expect(weak.ok).toBe(false);
-    const wrongCode = await completeActivation(token, "correct horse battery staple", "000000");
-    expect(wrongCode).toEqual({ ok: false, problems: [expect.stringMatching(/authenticator code/)] });
 
-    const { code, step } = await freshCode(info!.totpSecret, null);
-    expect(await completeActivation(token, "correct horse battery staple", code)).toEqual({ ok: true });
-    expect(await completeActivation(token, "correct horse battery staple", code)).toMatchObject({ ok: false }); // single use
+    expect(await completeActivation(token, "correct horse battery staple")).toEqual({ ok: true });
+    expect(await completeActivation(token, "correct horse battery staple")).toMatchObject({ ok: false }); // single use
 
     const p = await loginWithPassword("rt.newcomer", "correct horse battery staple", meta);
     expect(p.ok).toBe(true);
-    const next = await freshCode(info!.totpSecret, step);
-    if (p.ok) expect(await verifyLoginMfa(p.pendingToken, next.code)).toEqual({ ok: true });
+    if (p.ok) expect(await getAuthedSession(p.sessionToken)).not.toBeNull();
   });
 
   it("deactivation ends the RT's live sessions immediately", async () => {
@@ -184,11 +159,5 @@ describe("Chief RT administration", () => {
     await updateSetting(chief.session, "tubing.interval_days", "10");
     expect((await o.query("SELECT value FROM setting WHERE key = 'tubing.interval_days'")).rows[0].value).toBe(10);
     await updateSetting(chief.session, "tubing.interval_days", "7");
-  });
-});
-
-describe("TOTP step bookkeeping", () => {
-  it("helper sanity: steps are 30 s", () => {
-    expect(totpStep(60_000)).toBe(2);
   });
 });

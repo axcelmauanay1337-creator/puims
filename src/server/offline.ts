@@ -42,7 +42,7 @@ export async function setDeviceOffline(s: Session, deviceId: string, approve: bo
   const profile = process.env.PUIMS_DEPLOYMENT_PROFILE ?? "development";
   if (approve && (profile === "lan" || profile === "cloud") && process.env.PUIMS_OFFLINE_POLICY_APPROVED !== "true")
     throw new ClinicalError("FORBIDDEN", "Offline capture is disabled in this deployment until hospital IT and the DPO approve it (U-03).");
-  if (approve && !hasRecentReauth(s)) throw new ClinicalError("REAUTH_REQUIRED", "Confirm your password and authenticator code to approve offline use.");
+  if (approve && !hasRecentReauth(s)) throw new ClinicalError("REAUTH_REQUIRED", "Confirm your password to approve offline use.");
   if (!UUID_RE.test(deviceId)) throw new ClinicalError("NOT_FOUND", "Device not found.");
   await as(s, async (c) => {
     const r = approve

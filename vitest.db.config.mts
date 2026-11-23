@@ -26,7 +26,7 @@ export default defineConfig({
     environment: "node",
     globalSetup: ["tests/db/global-setup.ts"],
     fileParallelism: false,
-    testTimeout: 100_000, // some auth tests must wait for the next 30 s TOTP window (replay protection)
+    testTimeout: 100_000,
     hookTimeout: 120_000,
     env: {
       ...fileEnv,

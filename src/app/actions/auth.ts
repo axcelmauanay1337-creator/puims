@@ -2,20 +2,10 @@
 
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import QRCode from "qrcode";
-import { otpauthUri } from "@/lib/auth/totp";
 import { rateLimit } from "@/server/rateLimit";
 import { cookieOptions, DEVICE_COOKIE, PENDING_COOKIE, SESSION_COOKIE } from "@/server/auth/cookies";
 import { requestMeta } from "@/server/auth/request";
-import {
-  beginActivation,
-  completeActivation,
-  loginWithPassword,
-  MFA_PENDING_MINUTES,
-  reauthenticate,
-  revokeSessionByToken,
-  verifyLoginMfa,
-} from "@/server/auth/service";
+import { beginActivation, completeActivation, loginWithPassword, reauthenticate, revokeSessionByToken } from "@/server/auth/service";
 import { getSession } from "@/server/session";
 
 export interface FormState {
@@ -47,26 +37,8 @@ export async function loginAction(_: FormState, form: FormData): Promise<FormSta
   const result = await loginWithPassword(username, password, await requestMeta(jar.get(DEVICE_COOKIE())?.value ?? null));
   if (!result.ok) return { error: result.reason === "device_revoked" ? "This device has been revoked. Contact the Chief RT." : GENERIC };
   jar.set(DEVICE_COOKIE(), result.deviceId, cookieOptions(60 * 60 * 24 * 400));
-  jar.set(PENDING_COOKIE(), result.pendingToken, cookieOptions(MFA_PENDING_MINUTES * 60));
-  redirect(`/login/verify?next=${encodeURIComponent(safeNext(form.get("next")))}`);
-}
-
-export async function verifyAction(_: FormState, form: FormData): Promise<FormState> {
-  const jar = await cookies();
-  const pending = jar.get(PENDING_COOKIE())?.value;
-  if (!pending) return { error: "Your sign-in expired. Start again." };
-  const code = String(form.get("code") ?? "").replace(/\s/g, "");
-  if (!rateLimit(`mfa:${pending.slice(0, 16)}`, 10, 5 * 60_000).ok) return { error: "Too many attempts. Start again." };
-  const r = await verifyLoginMfa(pending, code);
-  if (!r.ok) {
-    if (r.reason === "expired") {
-      jar.delete(PENDING_COOKIE());
-      return { error: "Your sign-in expired or was cancelled after too many attempts. Start again." };
-    }
-    return { error: "That code is not valid. Enter the current 6-digit code from your authenticator app." };
-  }
-  jar.delete(PENDING_COOKIE());
-  jar.set(SESSION_COOKIE(), pending, cookieOptions());
+  jar.delete(PENDING_COOKIE()); // leftover from the removed authenticator step
+  jar.set(SESSION_COOKIE(), result.sessionToken, cookieOptions());
   redirect(safeNext(form.get("next")));
 }
 
@@ -91,36 +63,26 @@ export interface ActivationView {
   username?: string;
   displayName?: string;
   purpose?: "ACTIVATE" | "RESET";
-  secret?: string;
-  qrDataUrl?: string;
 }
 
 export async function startActivationAction(token: string): Promise<ActivationView> {
   if (!rateLimit(`activate:${await clientKey()}`, 30, 10 * 60_000).ok) return { ok: false };
   const info = await beginActivation(token);
   if (!info) return { ok: false };
-  const svg = await QRCode.toString(otpauthUri(info.totpSecret, info.username), { type: "svg", margin: 1, errorCorrectionLevel: "M" });
-  return {
-    ok: true,
-    username: info.username,
-    displayName: info.displayName,
-    purpose: info.purpose,
-    secret: info.totpSecret,
-    qrDataUrl: `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`,
-  };
+  return { ok: true, username: info.username, displayName: info.displayName, purpose: info.purpose };
 }
 
-export async function completeActivationAction(token: string, password: string, confirm: string, code: string): Promise<FormState & { ok?: boolean }> {
+export async function completeActivationAction(token: string, password: string, confirm: string): Promise<FormState & { ok?: boolean }> {
   if (!rateLimit(`activate-complete:${await clientKey()}`, 20, 10 * 60_000).ok) return { error: "Too many attempts. Wait a few minutes." };
   if (password !== confirm) return { problems: ["The two passwords do not match."] };
-  const r = await completeActivation(token, password, code.replace(/\s/g, ""));
+  const r = await completeActivation(token, password);
   return r.ok ? { ok: true } : { problems: r.problems };
 }
 
-export async function reauthAction(password: string, code: string): Promise<{ ok: boolean; error?: string }> {
+export async function reauthAction(password: string): Promise<{ ok: boolean; error?: string }> {
   const s = await getSession();
   if (!s) return { ok: false, error: "Your session has ended. Sign in again." };
   if (!rateLimit(`reauth:${s.staffId}`, 10, 5 * 60_000).ok) return { ok: false, error: "Too many attempts. Wait a few minutes." };
-  const ok = await reauthenticate(s, password, code.replace(/\s/g, ""));
-  return ok ? { ok: true } : { ok: false, error: "Password or authenticator code not accepted." };
+  const ok = await reauthenticate(s, password);
+  return ok ? { ok: true } : { ok: false, error: "Password not accepted." };
 }

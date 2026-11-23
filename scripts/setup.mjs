@@ -56,5 +56,4 @@ PUIMS is ready (synthetic data only).
   2. open http://localhost:3000
   3. sign in as chief.demo (Chief RT) or rt.alpha (RT)
      password: ${env.PUIMS_SEED_PASSWORD}
-     code:     npm run dev:totp -- chief.demo   (or add the secret from .seed-credentials.json to an authenticator app)
 `);

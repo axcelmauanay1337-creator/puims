@@ -17,7 +17,6 @@ export function ActivateClient() {
   const [errors, setErrors] = useState<{ error?: string; problems?: string[] }>({});
   const [pending, setPending] = useState(false);
   const [done, setDone] = useState(false);
-  const [showSecret, setShowSecret] = useState(false);
 
   useEffect(() => {
     const token = window.location.hash.slice(1);
@@ -44,7 +43,7 @@ export function ActivateClient() {
     return (
       <div role="status">
         <h1 className="text-[20px] font-semibold">Account ready</h1>
-        <p className="mb-4 mt-1 text-[13px] text-ink-2">Your password and authenticator are set. Sign in to continue.</p>
+        <p className="mb-4 mt-1 text-[13px] text-ink-2">Your password is set. Sign in to continue.</p>
         <Link
           href="/login"
           className="inline-flex min-h-10 items-center rounded-[var(--radius-control)] bg-accent px-4 text-[14px] font-semibold text-white hover:bg-accent-hover"
@@ -59,9 +58,7 @@ export function ActivateClient() {
     return (
       <div role="alert">
         <h1 className="text-[20px] font-semibold">PUIMS can&apos;t be reached right now</h1>
-        <p className="mb-4 mt-1 text-[13px] text-ink-2">
-          Your activation link is still valid. Keep this page open and try again in a few minutes.
-        </p>
+        <p className="mb-4 mt-1 text-[13px] text-ink-2">Your activation link is still valid. Keep this page open and try again in a few minutes.</p>
         <button
           type="button"
           onClick={check}
@@ -89,7 +86,7 @@ export function ActivateClient() {
         setPending(true);
         setErrors({});
         try {
-          const r = await completeActivationAction(tokenRef.current, String(f.get("password")), String(f.get("confirm")), String(f.get("code")));
+          const r = await completeActivationAction(tokenRef.current, String(f.get("password")), String(f.get("confirm")));
           if (r.ok) setDone(true);
           else setErrors(r);
         } catch {
@@ -107,7 +104,7 @@ export function ActivateClient() {
       </div>
       <section aria-labelledby="pw-h" className="space-y-3">
         <h2 id="pw-h" className="text-[13px] font-semibold">
-          1. Choose a password
+          Choose a password
         </h2>
         <Field
           label="New password"
@@ -120,25 +117,6 @@ export function ActivateClient() {
           hint={`At least ${PASSWORD_MIN} characters. A passphrase of several words works well.`}
         />
         <Field label="Confirm password" name="confirm" type="password" autoComplete="new-password" minLength={PASSWORD_MIN} maxLength={128} required />
-      </section>
-      <section aria-labelledby="mfa-h" className="space-y-3">
-        <h2 id="mfa-h" className="text-[13px] font-semibold">
-          2. Set up your authenticator app
-        </h2>
-        <p className="text-[12px] text-ink-2">Scan with Google Authenticator, Microsoft Authenticator or a similar app on your own phone.</p>
-        {/* eslint-disable-next-line @next/next/no-img-element -- data URL generated server-side */}
-        <img
-          src={view.qrDataUrl}
-          alt="QR code to add PUIMS to your authenticator app"
-          width={180}
-          height={180}
-          className="rounded border border-line bg-white p-1"
-        />
-        <button type="button" onClick={() => setShowSecret((x) => !x)} className="text-[12px] text-accent-ink underline">
-          {showSecret ? "Hide setup key" : "Can't scan? Show setup key"}
-        </button>
-        {showSecret && <code className="block break-all rounded bg-neutral-soft px-2 py-1 text-[12px]">{view.secret?.match(/.{1,4}/g)?.join(" ")}</code>}
-        <Field label="6-digit code from the app" name="code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]{6,7}" maxLength={7} required />
       </section>
       <FormError {...errors} />
       <SubmitButton pending={pending}>Activate account</SubmitButton>

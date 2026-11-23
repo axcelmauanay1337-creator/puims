@@ -3,8 +3,8 @@ import type { Page } from "@playwright/test";
 import { HOSPITAL_TZ, toLocalParts } from "../../src/lib/time/zoned";
 import { buildSyntheticGuide } from "../fixtures/syntheticGuide";
 import { buildSyntheticWorkbook } from "../fixtures/syntheticWorkbook";
-import { freshCode, seedPassword, signInViaUi } from "./auth-helpers";
-import { STATE, USERS } from "./env";
+import { seedPassword, signInViaUi } from "./auth-helpers";
+import { STATE } from "./env";
 import { expect, test } from "./fixtures";
 
 const z = (n: number) => String(n).padStart(2, "0");
@@ -12,11 +12,10 @@ function manila(d: Date) {
   const p = toLocalParts(d, HOSPITAL_TZ);
   return `${p.year}-${z(p.month)}-${z(p.day)}T${z(p.hour)}:${z(p.minute)}`;
 }
-async function confirmItsYou(page: Page, username: string) {
+async function confirmItsYou(page: Page) {
   const dialog = page.getByRole("dialog", { name: "Confirm it's you" });
   await expect(dialog).toBeVisible();
   await dialog.getByLabel("Password").fill(seedPassword());
-  await dialog.getByLabel("Authenticator code").fill(await freshCode(username));
   await dialog.getByRole("button", { name: "Confirm" }).click();
 }
 async function axe(page: Page) {
@@ -64,7 +63,7 @@ test.describe("PFT scheduling and the PFT clinical record (RT)", () => {
 
     page.once("dialog", (d) => d.accept());
     await page.getByRole("button", { name: "Sign as RT…" }).click();
-    await confirmItsYou(page, USERS.rt);
+    await confirmItsYou(page);
     await expect(page.getByText("RT signed — awaiting pulmonologist").first()).toBeVisible();
     await expect(page.getByLabel("Purpose of test")).toHaveCount(0); // content locked
 
@@ -74,7 +73,7 @@ test.describe("PFT scheduling and the PFT clinical record (RT)", () => {
     await page.getByRole("button", { name: "Finalize record…" }).click();
     // The step-up from signing may still be fresh; confirm only if asked.
     const asked = page.getByRole("dialog", { name: "Confirm it's you" });
-    if (await asked.isVisible({ timeout: 2000 }).catch(() => false)) await confirmItsYou(page, USERS.rt);
+    if (await asked.isVisible({ timeout: 2000 }).catch(() => false)) await confirmItsYou(page);
     await expect(page.getByText("Final — official record")).toBeVisible();
     await expect(page.getByText("Synthetic interpretation transcribed from the printed copy")).toBeVisible();
     await expect(page.getByRole("button", { name: "Add amendment…" })).toBeVisible();
@@ -155,7 +154,7 @@ test.describe("PFT guide workbook (Chief RT)", () => {
       .getByLabel("PFT guide workbook")
       .setInputFiles({ name: "guide.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: g.bytes });
     await page.getByRole("button", { name: "Load guide…" }).click();
-    await confirmItsYou(page, "chief.demo");
+    await confirmItsYou(page);
     await expect(page.getByText(/created with the logo; 2 signature\(s\) found for review/)).toBeVisible({ timeout: 15_000 });
     await page.reload();
     const proposals = page.getByTestId("signature-proposal");
@@ -175,7 +174,7 @@ test.describe("PFT guide workbook (Chief RT)", () => {
     await expect(page.getByAltText("New logo preview")).toBeVisible();
     await page.getByRole("button", { name: "Save as new version…" }).click();
     const again = page.getByRole("dialog", { name: "Confirm it's you" });
-    if (await again.isVisible({ timeout: 2000 }).catch(() => false)) await confirmItsYou(page, "chief.demo");
+    if (await again.isVisible({ timeout: 2000 }).catch(() => false)) await confirmItsYou(page);
     await expect(page.getByText(/New template version saved/)).toBeVisible();
     await page.reload();
     const logo = page.getByAltText("Current hospital logo on the PFT form");

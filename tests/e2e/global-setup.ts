@@ -1,6 +1,6 @@
 import { chromium, type FullConfig } from "@playwright/test";
 import { execSync } from "node:child_process";
-import { mkdirSync, rmSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { AUTH_DIR, loadEnv, STATE, USERS } from "./env";
 import { signInViaUi } from "./auth-helpers";
 
@@ -15,7 +15,6 @@ export default async function globalSetup(config: FullConfig) {
   execSync("node scripts/migrate.mjs", { env, stdio: "inherit" });
   execSync("npx tsx scripts/seed.ts --test", { env, stdio: "inherit" });
   mkdirSync(AUTH_DIR, { recursive: true });
-  rmSync(STATE.steps, { recursive: true, force: true });
 
   const baseURL = config.projects[0].use.baseURL!;
   const browser = await chromium.launch();

@@ -36,7 +36,7 @@ import type { Session } from "./session";
  *
  * The workbook is parsed in memory on the server (never written to disk, never sent anywhere),
  * staged row-by-row with sheet/row provenance, and nothing reaches the clinical tables until the
- * Chief RT has decided EVERY row and confirms the commit with a fresh password + authenticator check.
+ * Chief RT has decided EVERY row and confirms the commit with a fresh password check.
  * Committed batches can be reversed (voided) as a unit. Discarding a staged batch erases its raw values
  * and its retained original. The original workbook is kept encrypted (privacy officer approval, 2026-11-23).
  */
@@ -65,7 +65,7 @@ function asChief<T>(s: Session, fn: (c: Tx) => Promise<T>): Promise<T> {
   return tx({ staffId: s.staffId, sessionId: s.sessionId, deviceId: s.deviceId }, fn);
 }
 function requireReauth(s: Session) {
-  if (!hasRecentReauth(s)) throw new ClinicalError("REAUTH_REQUIRED", "Confirm your password and authenticator code to continue.");
+  if (!hasRecentReauth(s)) throw new ClinicalError("REAUTH_REQUIRED", "Confirm your password to continue.");
 }
 
 // ---------------------------------------------------------------- workbook → cells

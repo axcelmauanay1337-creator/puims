@@ -4,19 +4,12 @@ import pg from "pg";
 
 // Same type parsing as the app (src/server/db.ts): DATE stays a YYYY-MM-DD string.
 pg.types.setTypeParser(1082, (v) => v);
-import { totpCode, totpStep } from "@/lib/auth/totp";
 
 export const owner = () => new pg.Client({ connectionString: process.env.TEST_MIGRATION_DATABASE_URL });
 export const app = () => new pg.Client({ connectionString: process.env.TEST_DATABASE_URL });
 
-export function seedAccounts(): Record<string, { totpSecret: string; status: string; role: string }> {
+export function seedAccounts(): Record<string, { status: string; role: string }> {
   return JSON.parse(readFileSync(".seed-credentials.test.json", "utf8")).accounts;
-}
-
-/** A TOTP code for a step strictly after `afterStep` (waits for the next 30 s window if needed). */
-export async function freshCode(secret: string, afterStep: number | null): Promise<{ code: string; step: number }> {
-  while (afterStep !== null && totpStep(Date.now()) <= afterStep) await new Promise((r) => setTimeout(r, 500));
-  return { code: totpCode(secret, Date.now()), step: totpStep(Date.now()) };
 }
 
 export async function staffId(c: pg.Client, username: string): Promise<string> {

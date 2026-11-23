@@ -14,7 +14,7 @@ Status as of Milestone 8 (2026-11-22). ✅ = done and tested in this repository.
 
 ## Security
 
-- ✅ Individual accounts, Argon2id, mandatory TOTP with replay protection, lockout, session idle/absolute limits, step-up re-authentication for sensitive actions.
+- ⚠️ Authenticator (TOTP) removed at the product owner's request (ADR-0009) — hospital IT must accept password-only sign-in or ask for a second factor back. ✅ Individual accounts, Argon2id, lockout, session idle/absolute limits, step-up re-authentication for sensitive actions.
 - ✅ Row-level security on every table keyed to a validated session; app role has no DELETE/TRUNCATE.
 - ✅ Append-only audit log (actor/session/device/time stamped in the database).
 - ✅ Nonce CSP on the app; strict static CSP on the offline page; no PHI in URLs; no-store caching; no analytics/telemetry.

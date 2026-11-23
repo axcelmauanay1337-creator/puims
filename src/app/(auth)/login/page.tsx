@@ -17,14 +17,14 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   return (
     <>
       <h1 className="text-[20px] font-semibold">Sign in</h1>
-      <p className="mb-4 mt-1 text-[13px] text-ink-2">Use your own PUIMS account. You will then be asked for your authenticator code.</p>
+      <p className="mb-4 mt-1 text-[13px] text-ink-2">Use your own PUIMS account.</p>
       {reason ? (
         <p role="status" className="mb-3 rounded-[var(--radius-control)] border border-line bg-neutral-soft px-3 py-2 text-[12px] text-ink-2">
           {reason}
         </p>
       ) : null}
       <LoginForm next={next} />
-      <p className="mt-4 text-[12px] text-ink-3">Forgot your password or lost your phone? Ask the Chief RT to reset your access.</p>
+      <p className="mt-4 text-[12px] text-ink-3">Forgot your password? Ask the Chief RT to reset your access.</p>
     </>
   );
 }

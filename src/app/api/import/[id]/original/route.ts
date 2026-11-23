@@ -2,7 +2,7 @@ import { ClinicalError } from "@/server/clinical";
 import { originalWorkbook } from "@/server/importer";
 import { getSession } from "@/server/session";
 
-/** The retained original workbook (Chief RT; requires a recent password + authenticator confirmation). Audited. */
+/** The retained original workbook (Chief RT; requires a recent password confirmation). Audited. */
 export async function GET(_req: Request, ctx: RouteContext<"/api/import/[id]/original">) {
   const session = await getSession();
   if (!session) return new Response("Sign in again.", { status: 401, headers: { "cache-control": "no-store" } });
@@ -20,7 +20,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/import/[id]/ori
   } catch (e) {
     if (e instanceof ClinicalError) {
       const status = e.kind === "REAUTH_REQUIRED" ? 403 : e.kind === "FORBIDDEN" ? 403 : 404;
-      return new Response(e.kind === "REAUTH_REQUIRED" ? "Confirm your password and authenticator code first." : e.message, {
+      return new Response(e.kind === "REAUTH_REQUIRED" ? "Confirm your password first." : e.message, {
         status,
         headers: { "cache-control": "no-store" },
       });

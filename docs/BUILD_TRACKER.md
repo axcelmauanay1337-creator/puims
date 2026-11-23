@@ -65,3 +65,9 @@ PostgreSQL is the source of truth for every screen. Individual accounts with pas
 ## Milestone 1 — what "complete" means here
 
 Read-only screens on synthetic data for all 16 modules; every write workflow is shown as an explicit "Milestone N" notice rather than a fake or dead control. Server-side permission checks on every page and API. No real authentication (demo session only, fail-closed). No database.
+
+## Update 2026-11-23 (password-only sign-in; database hardening)
+
+- Product owner: remove the authenticator. Sign-in, activation and "Confirm it's you" are password-only (ADR-0009). Lockout, rate limits, session limits and audit are unchanged.
+- Migration 0015 (Supabase security advisor): RLS on `schema_migrations`; EXECUTE on every public function revoked from PUBLIC (which included Supabase's `anon`/`authenticated` API roles) and granted only to `puims_app`; `search_path` pinned on every function.
+- Tests: 105 unit · 127 PostgreSQL · 82 Playwright.

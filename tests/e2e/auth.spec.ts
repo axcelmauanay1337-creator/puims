@@ -1,4 +1,4 @@
-import { freshCode, seedPassword, signInViaUi } from "./auth-helpers";
+import { seedPassword, signInViaUi } from "./auth-helpers";
 import { STATE } from "./env";
 import { expect, test } from "./fixtures";
 
@@ -29,20 +29,15 @@ test.describe("unauthenticated access", () => {
       await page.goto("/login");
       await page.getByLabel("Username").fill(u);
       await page.getByLabel("Password").fill(pw);
-      await page.getByRole("button", { name: "Continue" }).click();
+      await page.getByRole("button", { name: "Sign in" }).click();
       await expect(page.getByRole("alert").filter({ hasText: "Sign-in failed" })).toHaveText(/Sign-in failed\. Check your username and password/);
     }
   });
 
-  test("a wrong authenticator code is refused, then the right one signs in and returns to the deep link", async ({ page }) => {
+  test("signing in returns to the deep link", async ({ page }) => {
     await page.goto("/login?next=%2Fshifts");
     await page.getByLabel("Username").fill("rt.charlie");
     await page.getByLabel("Password").fill(seedPassword());
-    await page.getByRole("button", { name: "Continue" }).click();
-    await page.getByLabel("Authenticator code").fill("000000");
-    await page.getByRole("button", { name: "Sign in" }).click();
-    await expect(page.getByRole("alert").filter({ hasText: "code" })).toContainText("That code is not valid");
-    await page.getByLabel("Authenticator code").fill(await freshCode("rt.charlie"));
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page).toHaveURL(/\/shifts$/);
   });
@@ -77,7 +72,7 @@ test.describe("Chief RT account administration", () => {
   test.describe.configure({ mode: "serial" });
   test.use({ storageState: STATE.chief });
 
-  test("invite an RT (with re-authentication), RT activates with password + authenticator, then signs in", async ({ page, browser }) => {
+  test("invite an RT (with re-authentication), RT activates with a password, then signs in", async ({ page, browser }) => {
     await page.goto("/staff");
     await page.getByLabel("Username").fill("rt.e2e");
     await page.getByLabel("Display name").fill("E2E Synthetic RT");
@@ -86,7 +81,6 @@ test.describe("Chief RT account administration", () => {
     const dialog = page.getByRole("dialog", { name: "Confirm it's you" });
     await expect(dialog).toBeVisible();
     await dialog.getByLabel("Password").fill(seedPassword());
-    await dialog.getByLabel("Authenticator code").fill(await freshCode("chief.demo"));
     await dialog.getByRole("button", { name: "Confirm" }).click();
 
     const box = page.getByTestId("activation-link");
@@ -101,11 +95,8 @@ test.describe("Chief RT account administration", () => {
     await rt.goto(link);
     await expect(rt.getByRole("heading", { name: "Activate your account" })).toBeVisible();
     await expect(rt).toHaveURL(/\/activate$/); // token scrubbed from the address bar
-    await rt.getByRole("button", { name: /Show setup key/ }).click();
-    const secret = (await rt.locator("code").textContent())!.replace(/\s/g, "");
     await rt.getByLabel("New password").fill("blue harbor lantern morning");
     await rt.getByLabel("Confirm password").fill("blue harbor lantern morning");
-    await rt.getByLabel("6-digit code from the app").fill(await freshCode("rt.e2e", secret));
     await rt.getByRole("button", { name: "Activate account" }).click();
     await expect(rt.getByRole("heading", { name: "Account ready" })).toBeVisible();
 
@@ -117,8 +108,6 @@ test.describe("Chief RT account administration", () => {
     await rt.goto("/login");
     await rt.getByLabel("Username").fill("rt.e2e");
     await rt.getByLabel("Password").fill("blue harbor lantern morning");
-    await rt.getByRole("button", { name: "Continue" }).click();
-    await rt.getByLabel("Authenticator code").fill(await freshCode("rt.e2e", secret));
     await rt.getByRole("button", { name: "Sign in" }).click();
     await expect(rt.getByRole("heading", { name: /E2E Synthetic RT/ })).toBeVisible();
     await expect(rt.locator("aside[aria-label='Sidebar']:visible a[href='/staff']")).toHaveCount(0);

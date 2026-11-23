@@ -16,7 +16,7 @@ export default async function StaffPage() {
         eyebrow="Management"
         title="RT Staff"
         crumbs={[{ label: "Management" }, { label: "RT Staff" }]}
-        description="Individual accounts only — no shared logins. There is exactly one Chief RT administrator; you can only create Respiratory Therapist accounts. Sensitive actions ask you to confirm your password and authenticator code."
+        description="Individual accounts only — no shared logins. There is exactly one Chief RT administrator; you can only create Respiratory Therapist accounts. Sensitive actions ask you to confirm your password."
       />
       <StaffAdmin rows={rows} selfId={session.staffId} />
     </>

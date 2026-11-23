@@ -21,7 +21,7 @@ export class AdminError extends Error {
 
 async function asChief<T>(s: AuthedSession, fn: (c: Tx) => Promise<T>, opts: { reauth?: boolean } = { reauth: true }): Promise<T> {
   if (s.role !== "CHIEF_RT_ADMIN") throw new AdminError("FORBIDDEN", "Only the Chief RT can do this.");
-  if (opts.reauth !== false && !hasRecentReauth(s)) throw new AdminError("REAUTH_REQUIRED", "Confirm your password and authenticator code to continue.");
+  if (opts.reauth !== false && !hasRecentReauth(s)) throw new AdminError("REAUTH_REQUIRED", "Confirm your password to continue.");
   return tx({ staffId: s.staffId, sessionId: s.sessionId, deviceId: s.deviceId, auth: true }, async (c) => {
     const ok = await c.query<{ ok: boolean }>("SELECT app_is_chief() AS ok");
     if (!ok.rows[0]?.ok) throw new AdminError("FORBIDDEN", "Only the Chief RT can do this.");
@@ -64,7 +64,7 @@ export async function inviteStaff(s: AuthedSession, input: { username: string; d
 }
 
 /**
- * Resets an RT's access: revokes all sessions, clears password and authenticator,
+ * Resets an RT's access: revokes all sessions, clears the password,
  * and issues a new activation link. Also the way to reinstate a deactivated RT.
  */
 export async function resetAccess(s: AuthedSession, staffId: string): Promise<{ token: string }> {

@@ -221,3 +221,20 @@ describe("audit log is append-only, attributed and redacted", () => {
     expect(creds.rows[0].n).toBeGreaterThan(0); // credential changes ARE audited, just redacted
   });
 });
+
+describe("hardening (migration 0015)", () => {
+  it("no public-schema function is executable by PUBLIC, and every one pins its search_path", async () => {
+    const r = await o.query(
+      `SELECT count(*) FILTER (WHERE has_function_privilege('public', p.oid, 'EXECUTE'))::int AS public_exec,
+              count(*) FILTER (WHERE NOT EXISTS (SELECT 1 FROM unnest(coalesce(p.proconfig, '{}')) c WHERE c LIKE 'search_path=%'))::int AS no_path
+         FROM pg_proc p JOIN pg_roles ro ON ro.oid = p.proowner
+        WHERE p.pronamespace = 'public'::regnamespace AND p.prokind = 'f' AND ro.rolname = current_user`,
+    );
+    expect(r.rows[0]).toEqual({ public_exec: 0, no_path: 0 });
+  });
+
+  it("schema_migrations is protected by row-level security", async () => {
+    const r = await o.query("SELECT relrowsecurity FROM pg_class WHERE oid = 'schema_migrations'::regclass");
+    expect(r.rows[0].relrowsecurity).toBe(true);
+  });
+});

@@ -164,7 +164,7 @@ export async function decideProposalAction(id: string, accept: boolean, extra: {
 export async function confirmStepUpAction() {
   return wrap(async () => {
     const s = await requireSession();
-    if (!hasRecentReauth(s)) throw new ClinicalError("REAUTH_REQUIRED", "Confirm your password and authenticator code to continue.");
+    if (!hasRecentReauth(s)) throw new ClinicalError("REAUTH_REQUIRED", "Confirm your password to continue.");
   }, []);
 }
 export async function deactivateSignatoryAction(id: string) {
@@ -209,6 +209,6 @@ export async function confirmOriginalDownloadAction() {
   return wrap(async () => {
     const s = await requireSession();
     if (s.role !== "CHIEF_RT_ADMIN") throw new ClinicalError("FORBIDDEN", "Only the Chief RT can download original workbooks.");
-    if (!hasRecentReauth(s)) throw new ClinicalError("REAUTH_REQUIRED", "Confirm your password and authenticator code to download the original.");
+    if (!hasRecentReauth(s)) throw new ClinicalError("REAUTH_REQUIRED", "Confirm your password to download the original.");
   }, []);
 }

@@ -4,9 +4,9 @@ PUIMS is **not validated for clinical use**. This environment contains synthetic
 
 ## Signing in
 
-1. Username + password, then the 6-digit code from your authenticator app.
+1. Username + password.
 2. You are signed out after 15 minutes without activity and after 12 hours at most.
-3. Some actions ask **"Confirm it's you"** (password + a new authenticator code): account and device changes, settings, PFT signing/finalizing/amending, signatory and template changes, import commit/reversal, offline device approval.
+3. Some actions ask **"Confirm it's you"** (your password again): account and device changes, settings, PFT signing/finalizing/amending, signatory and template changes, import commit/reversal, offline device approval.
 4. Forgot your password or lost your phone? Ask the Chief RT to reset your access — they give you a new one-time activation link in person.
 
 ## For every RT
@@ -17,7 +17,7 @@ PUIMS is **not validated for clinical use**. This environment contains synthetic
 | Register / correct a patient              | Patient Masterlist → New patient; patient → Edit                                          | Possible duplicates are shown for you to decide; identity corrections need a reason                                                                                  |
 | Nebulization orders                       | Nebulization → New order                                                                  | RTs only. Enter exactly as written, including the times. Orders are never edited — discontinue with a reason and enter a new one                                     |
 | Document a dose                           | Nebulization worklist → Document                                                          | Given / not given / refused / delayed / cancelled; reason needed unless given; up to 72 h late, never in the future. Wrong entry → Void with reason                  |
-| Ventilator hook-in, disconnection, tubing | Mechanical Ventilation, Change of Tubing                                                   | Tubing is never marked replaced automatically                                                                                                                        |
+| Ventilator hook-in, disconnection, tubing | Mechanical Ventilation, Change of Tubing                                                  | Tubing is never marked replaced automatically                                                                                                                        |
 | Book PFT / ABG / sputum induction         | Diagnostics → Book appointment                                                            | Patient, date/time, procedure as requested, OPD/INP, physician. Payment is not recorded (U-09)                                                                       |
 | Update an appointment                     | Open it → Mark done / No-show / Cancel / For reschedule / Reschedule                      | Done is recorded in your name. Done, no-show, cancelled and rescheduled cannot be changed — void an entry made in error (only the RT who booked it, or the Chief RT) |
 | Calendar / filters / print                | Diagnostics → Calendar; filters; Print schedule; appointment → Printable patient schedule |                                                                                                                                                                      |

@@ -8,16 +8,16 @@ One Next.js (Node.js 22) application process behind a TLS reverse proxy, one Pos
 
 ## Environment variables
 
-| Variable                        | Required    | Notes                                                                                                                                                                                       |
-| ------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                  | yes         | `puims_app` role, `sslmode=require`                                                                                                                                                         |
-| `PUIMS_DATA_KEY`                | yes         | 32-byte base64; encrypts authenticator secrets and offline lease keys. Keep outside DB backups; losing it forces authenticator re-enrolment and makes unsynced offline queues unrecoverable |
-| `PUIMS_DEPLOYMENT_PROFILE`      | yes         | `lan` or `cloud` (refuses seeding/dev helpers; shows no dev banner)                                                                                                                         |
-| `PUIMS_PUBLIC_URL`              | yes         | Used for activation links                                                                                                                                                                   |
-| `PUIMS_TRUST_PROXY`             | optional    | `true` only behind a trusted proxy that sets `X-Forwarded-For`                                                                                                                              |
-| `PUIMS_OFFLINE_POLICY_APPROVED` | optional    | Leave `false` until U-03 is approved; while false the Chief RT cannot approve offline devices                                                                                               |
-| `PUIMS_DB_POOL_MAX`             | optional    | default 10                                                                                                                                                                                  |
-| `NEXT_TELEMETRY_DISABLED`       | recommended | `1`                                                                                                                                                                                         |
+| Variable                        | Required    | Notes                                                                                                                                              |
+| ------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                  | yes         | `puims_app` role, `sslmode=require`                                                                                                                |
+| `PUIMS_DATA_KEY`                | yes         | 32-byte base64; encrypts offline lease keys and retained originals. Keep outside DB backups; losing it makes unsynced offline queues unrecoverable |
+| `PUIMS_DEPLOYMENT_PROFILE`      | yes         | `lan` or `cloud` (refuses seeding/dev helpers; shows no dev banner)                                                                                |
+| `PUIMS_PUBLIC_URL`              | yes         | Used for activation links                                                                                                                          |
+| `PUIMS_TRUST_PROXY`             | optional    | `true` only behind a trusted proxy that sets `X-Forwarded-For`                                                                                     |
+| `PUIMS_OFFLINE_POLICY_APPROVED` | optional    | Leave `false` until U-03 is approved; while false the Chief RT cannot approve offline devices                                                      |
+| `PUIMS_DB_POOL_MAX`             | optional    | default 10                                                                                                                                         |
+| `NEXT_TELEMETRY_DISABLED`       | recommended | `1`                                                                                                                                                |
 
 ## Release procedure (each new version)
 
@@ -28,7 +28,7 @@ One Next.js (Node.js 22) application process behind a TLS reverse proxy, one Pos
 5. **Stop** the app (or drain behind the proxy).
 6. **Migrate**: `MIGRATION_DATABASE_URL=… npm run db:migrate`. Migrations are forward-only, transactional, checksummed and refuse to run if an applied file was altered.
 7. **Start** the new build (`npm start` / container). Check `GET /api/health` → `{"status":"ok"}` (contains no patient data).
-8. **Smoke test** (5 minutes, synthetic or test account where possible): sign in with authenticator; Overview loads; open a patient; Nebulization worklist; Diagnostics calendar; Reports; Devices & Sync shows "Online". Check the server log for errors (logs contain no request bodies or patient values).
+8. **Smoke test** (5 minutes, synthetic or test account where possible): sign in; Overview loads; open a patient; Nebulization worklist; Diagnostics calendar; Reports; Devices & Sync shows "Online". Check the server log for errors (logs contain no request bodies or patient values).
 9. **Announce** completion; note the version in the change log.
 
 ## Rollback
@@ -47,5 +47,5 @@ Never "roll back" by editing or deleting migration files on a database where the
 ## After an incident
 
 - Revoke affected sessions/devices from Devices & Sync; reset access for affected accounts.
-- If `PUIMS_DATA_KEY` may be exposed: rotate it (procedure to be written with IT before go-live — re-encrypt `auth_credential.totp_secret_enc` and `offline_lease.key_enc`), revoke all offline leases, force authenticator re-enrolment.
+- If `PUIMS_DATA_KEY` may be exposed: rotate it (procedure to be written with IT before go-live — re-encrypt `offline_lease.key_enc` and retained originals), revoke all offline leases, ment.
 - Preserve the audit log (append-only; export with owner credentials for the investigation).

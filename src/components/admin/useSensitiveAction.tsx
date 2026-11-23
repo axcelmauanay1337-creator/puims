@@ -6,7 +6,7 @@ import type { AdminResult } from "@/app/actions/admin";
 
 /**
  * Runs an admin server action. If the server answers "re-authentication
- * required", shows a password + authenticator dialog, then retries once.
+ * required", shows a password dialog, then retries once.
  */
 export function useSensitiveAction() {
   const [dialog, setDialog] = useState<null | { resolve: (ok: boolean) => void }>(null);
@@ -56,7 +56,7 @@ function ReauthDialog({ onDone }: { onDone: (ok: boolean) => void }) {
           const f = new FormData(e.currentTarget);
           setPending(true);
           setError(null);
-          const r = await reauthAction(String(f.get("password")), String(f.get("code"))).catch(() => ({ ok: false, error: "Could not reach the server." }));
+          const r = await reauthAction(String(f.get("password"))).catch(() => ({ ok: false, error: "Could not reach the server." }));
           setPending(false);
           if (r.ok) onDone(true);
           else setError(r.error ?? "Not accepted.");
@@ -65,7 +65,7 @@ function ReauthDialog({ onDone }: { onDone: (ok: boolean) => void }) {
         <h2 id="reauth-h" className="text-[16px] font-semibold">
           Confirm it&apos;s you
         </h2>
-        <p className="mt-1 text-[12px] text-ink-2">This is a sensitive action. Enter your password and a new authenticator code.</p>
+        <p className="mt-1 text-[12px] text-ink-2">This is a sensitive action. Enter your password again.</p>
         <label className="mt-3 block text-[12px] font-medium text-ink-2">
           Password
           <input
@@ -73,18 +73,6 @@ function ReauthDialog({ onDone }: { onDone: (ok: boolean) => void }) {
             name="password"
             type="password"
             autoComplete="current-password"
-            required
-            className="mt-1 block min-h-10 w-full rounded-[7px] border border-line px-3 text-[14px]"
-          />
-        </label>
-        <label className="mt-3 block text-[12px] font-medium text-ink-2">
-          Authenticator code
-          <input
-            name="code"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            pattern="[0-9 ]{6,7}"
-            maxLength={7}
             required
             className="mt-1 block min-h-10 w-full rounded-[7px] border border-line px-3 text-[14px]"
           />

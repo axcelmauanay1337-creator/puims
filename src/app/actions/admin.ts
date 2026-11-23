@@ -53,7 +53,7 @@ export async function resetAccessAction(staffId: string): Promise<AdminResult> {
       return {
         ok: true,
         link: await activationLink(token),
-        message: "Access reset. All their sessions were ended. They must set a new password and authenticator with this link.",
+        message: "Access reset. All their sessions were ended. They must set a new password with this link.",
       };
     },
     ["/staff"],

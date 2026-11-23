@@ -138,7 +138,10 @@ export default async function SettingsPage() {
                 </>
               }
             />
-            <Row k="Authentication" v={<>Individual accounts · Argon2id password + authenticator app (TOTP) · re-authentication for sensitive actions</>} />
+            <Row
+              k="Authentication"
+              v={<>Individual accounts · Argon2id password · lockout after 10 failed attempts · re-authentication for sensitive actions</>}
+            />
           </dl>
         </Card>
       </div>

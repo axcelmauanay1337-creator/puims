@@ -15,12 +15,12 @@ npm run dev                       # http://localhost:3000
 
 Generate values for `.env.local`: two DB passwords (`openssl rand -hex 18`), `PUIMS_DATA_KEY` (`openssl rand -base64 32`), `PUIMS_SEED_PASSWORD` (≥ 12 chars), and `PUIMS_INSECURE_COOKIES=true` for plain-HTTP localhost.
 
-**Signing in locally**: seeded accounts are `chief.demo` and `rt.alpha` … `rt.echo` (`rt.foxtrot` is deactivated, `rt.golf` invited), all with password `PUIMS_SEED_PASSWORD`. For the authenticator code either add the secret from `.seed-credentials.json` to an authenticator app, or run `npm run dev:totp -- chief.demo`. Re-running the seed issues new secrets.
+**Signing in locally**: seeded accounts are `chief.demo` and `rt.alpha` … `rt.echo` (`rt.foxtrot` is deactivated, `rt.golf` invited), all with password `PUIMS_SEED_PASSWORD`.
 
 ## Tests
 
 ```bash
-npm test            # unit (time rules, tubing, metrics, TOTP RFC vectors, password policy, crypto)
+npm test            # unit (time rules, tubing, metrics, password policy, crypto)
 npm run test:db     # PostgreSQL: RLS, audit immutability, constraints, auth service (re-seeds puims_test)
 npm run build && npm run test:e2e   # Playwright against puims_test with real sign-in
 npm run verify      # everything, CI order
@@ -35,12 +35,12 @@ npm run verify      # everything, CI order
 3. **Migrate**: `MIGRATION_DATABASE_URL=… npm run db:migrate` (refuses if an applied migration was edited).
 4. **Build and run**: `npm ci && npm run build && npm start` behind a TLS-terminating reverse proxy (HTTPS is mandatory: session cookies are `Secure` and `__Host-` prefixed).
 5. **Bootstrap the Chief RT**: `MIGRATION_DATABASE_URL=… PUIMS_PUBLIC_URL=… npm run admin:bootstrap -- --username <name> --name "<Full Name>"`. Hand the printed one-time link to the Chief RT in person. It expires in 72 h.
-6. The Chief RT activates (password + authenticator), then invites each RT from **RT Staff**.
+6. The Chief RT activates (sets a password), then invites each RT from **RT Staff**.
 7. Configure encrypted backups (`docs/BACKUP_AND_RESTORE.md`) and run a restore drill before go-live.
 
-Seeding (`npm run db:seed`) and `dev:totp` refuse to run on `lan`/`cloud` profiles.
+Seeding (`npm run db:seed`) refuses to run on `lan`/`cloud` profiles.
 
-## Chief RT lost their authenticator / left the role
+## Chief RT forgot their password / left the role
 
 Operator procedure with owner credentials, recorded in the audit log:
 

@@ -138,7 +138,7 @@ export async function extractGuide(bytes: Buffer): Promise<GuideExtract> {
 /** Chief RT, step-up: create a template version from the guide and stage its signatures for review. */
 export async function importPftGuide(s: Session, bytes: Buffer): Promise<{ version: number; logo: boolean; proposals: number }> {
   if (s.role !== "CHIEF_RT_ADMIN") throw new ClinicalError("FORBIDDEN", "Only the Chief RT can load the PFT guide.");
-  if (!hasRecentReauth(s)) throw new ClinicalError("REAUTH_REQUIRED", "Confirm your password and authenticator code to continue.");
+  if (!hasRecentReauth(s)) throw new ClinicalError("REAUTH_REQUIRED", "Confirm your password to continue.");
   if (bytes.length > 10 * 1024 * 1024) throw new ClinicalError("INVALID", "The file is larger than 10 MB.");
   if (bytes[0] !== 0x50 || bytes[1] !== 0x4b) throw new ClinicalError("INVALID", "Only .xlsx workbooks are accepted.");
   const g = await extractGuide(bytes);

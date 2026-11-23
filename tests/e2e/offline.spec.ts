@@ -1,13 +1,12 @@
 import type { Page } from "@playwright/test";
-import { freshCode, seedPassword, signInViaUi } from "./auth-helpers";
+import { seedPassword, signInViaUi } from "./auth-helpers";
 import { STATE, USERS } from "./env";
 import { expect, test } from "./fixtures";
 
-async function confirmItsYou(page: Page, username: string) {
+async function confirmItsYou(page: Page) {
   const dialog = page.getByRole("dialog", { name: "Confirm it's you" });
   await expect(dialog).toBeVisible();
   await dialog.getByLabel("Password").fill(seedPassword());
-  await dialog.getByLabel("Authenticator code").fill(await freshCode(username));
   await dialog.getByRole("button", { name: "Confirm" }).click();
 }
 
@@ -40,7 +39,7 @@ test.describe("offline capture (approved device)", () => {
     const row = page.locator(`[data-device-id="${deviceId}"]`);
     page.once("dialog", (d) => d.accept());
     await row.getByRole("button", { name: "Approve for offline…" }).click();
-    await confirmItsYou(page, USERS.chief);
+    await confirmItsYou(page);
     await expect(row.getByText("Offline capture: approved")).toBeVisible();
     await ctx.close();
   });

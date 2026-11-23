@@ -51,9 +51,7 @@ export function StaffAdmin({ rows, selfId }: { rows: StaffRowView[]; selfId: str
         <h2 id="invite-h" className="text-[13px] font-semibold">
           Invite a Respiratory Therapist
         </h2>
-        <p className="mt-0.5 text-[12px] text-ink-3">
-          Creates an individual RT account. The RT sets their own password and authenticator from the activation link.
-        </p>
+        <p className="mt-0.5 text-[12px] text-ink-3">Creates an individual RT account. The RT sets their own password from the activation link.</p>
         <form
           className="mt-3 flex flex-wrap items-end gap-3"
           onSubmit={async (e) => {
@@ -153,7 +151,7 @@ export function StaffAdmin({ rows, selfId }: { rows: StaffRowView[]; selfId: str
                           type="button"
                           disabled={busy}
                           onClick={async () => {
-                            if (!confirm(`Reset access for ${s.displayName}? Their password and authenticator are cleared and all sessions end.`)) return;
+                            if (!confirm(`Reset access for ${s.displayName}? Their password is cleared and all sessions end.`)) return;
                             setRowResult({ id: s.id, r: await run(() => resetAccessAction(s.id)) });
                           }}
                           className="min-h-8 rounded-[7px] border border-line px-2 text-[12px] hover:bg-hover"

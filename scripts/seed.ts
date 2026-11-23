@@ -7,15 +7,12 @@
  * Refuses to run unless PUIMS_DEPLOYMENT_PROFILE is development or uat.
  * ALWAYS wipes existing data first (it is meant for disposable databases only).
  *
- * Synthetic accounts get the password in PUIMS_SEED_PASSWORD and a random TOTP
- * secret each run, written to .seed-credentials[.test].json (gitignored) so you
- * can enrol an authenticator or use `npm run dev:totp -- <username>`.
+ * Synthetic accounts get the password in PUIMS_SEED_PASSWORD; the account list is
+ * written to .seed-credentials[.test].json (gitignored).
  */
 import { hash } from "@node-rs/argon2";
 import { writeFileSync } from "node:fs";
 import pg from "pg";
-import { encryptSecret } from "../src/lib/auth/tokens";
-import { generateTotpSecret } from "../src/lib/auth/totp";
 import { generateSyntheticDataset } from "../src/lib/demo/synthetic";
 import { classifyInstant } from "../src/lib/time/shifts";
 
@@ -96,7 +93,7 @@ async function main() {
     );
 
     // Staff + credentials ------------------------------------------------
-    const creds: Record<string, { totpSecret: string; status: string; role: string }> = {};
+    const creds: Record<string, { status: string; role: string }> = {};
     const pwHash = await hash(password!, { memoryCost: 19_456, timeCost: 2, parallelism: 1 });
     await bulk(
       c,
@@ -116,13 +113,10 @@ async function main() {
     const credRows = [];
     for (const s of ds.staff) {
       if (s.accountStatus === "INVITED") continue;
-      const secret = generateTotpSecret();
-      creds[usernameOf(s.displayName)] = { totpSecret: secret, status: s.accountStatus, role: s.role };
+      creds[usernameOf(s.displayName)] = { status: s.accountStatus, role: s.role };
       credRows.push({
         staff_id: s.id,
         password_hash: pwHash,
-        totp_secret_enc: encryptSecret(secret),
-        totp_enabled_at: now.toISOString(),
         password_changed_at: now.toISOString(),
         failed_attempts: 0,
       });
@@ -294,7 +288,7 @@ async function main() {
               (SELECT count(*) FROM vent_encounter) encounters, (SELECT count(*) FROM tubing_event) tubing, (SELECT count(*) FROM staff) staff`,
     );
     console.log(`Seeded synthetic data in ${((Date.now() - started) / 1000).toFixed(1)}s:`, counts.rows[0]);
-    console.log(`Accounts (password = PUIMS_SEED_PASSWORD, TOTP secrets in ${file}):`, Object.keys(creds).join(", "));
+    console.log(`Accounts (password = PUIMS_SEED_PASSWORD, list in ${file}):`, Object.keys(creds).join(", "));
   } catch (e) {
     await c.query("ROLLBACK").catch(() => {});
     throw e;

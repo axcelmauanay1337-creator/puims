@@ -6,7 +6,7 @@ Tester: \***\*\_\_\*\*** Device/browser: \***\*\_\_\*\*** Date: \***\*\_\_\*\***
 
 ## A. Access
 
-- [ ] Chief RT creates an RT account; RT activates with password + authenticator; signs in.
+- [ ] Chief RT creates an RT account; RT activates with a password; signs in.
 - [ ] Idle sign-out after the configured minutes; re-login works.
 - [ ] RT cannot open Staff, Reports, Import, Audit (server says Access denied).
 - [ ] Chief RT revokes a device; that browser is signed out immediately.
