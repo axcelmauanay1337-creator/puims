@@ -13,17 +13,48 @@ export interface OrderTiming {
   discontinuedAt: Date | null;
 }
 
-const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)(?::00)?$/;
+const H24_RE = /^([01]\d|2[0-3]):([0-5]\d)(?::00)?$/;
+const H12_RE = /^(\d{1,2})(?::([0-5]\d))?\s*(AM|PM|A\.M\.?|P\.M\.?|NN|MN)$/i;
 
-/** Parses "08:00, 14:00 20:00" → ["08:00","14:00","20:00"] (sorted, unique) or an error message. */
+/** One written time → "HH:MM", or null. Accepts 8:00 AM, 8 PM, 8pm, 12 NN, 12 MN and 24-hour 20:00. */
+export function parseOneTime(text: string): string | null {
+  const t = text.trim();
+  if (H24_RE.test(t)) return t.slice(0, 5);
+  const m = H12_RE.exec(t);
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = m[2] ?? "00";
+  const mer = m[3].toUpperCase().replace(/\./g, "");
+  if (h < 1 || h > 12) return null;
+  if ((mer === "NN" || mer === "MN") && (h !== 12 || min !== "00")) return null;
+  const h24 = mer === "MN" ? 0 : mer === "NN" ? 12 : mer === "AM" ? h % 12 : (h % 12) + 12;
+  return `${String(h24).padStart(2, "0")}:${min}`;
+}
+
+/** Parses "8:00 AM, 2 PM, 20:00" → ["08:00","14:00","20:00"] (sorted, unique) or an error message. */
 export function parsePrescribedTimes(raw: string): { ok: true; times: string[] } | { ok: false; error: string } {
-  const parts = raw
-    .split(/[\s,;]+/)
+  const out: string[] = [];
+  for (const chunk of raw
+    .split(/[,;\n]+/)
     .map((x) => x.trim())
-    .filter(Boolean);
-  const bad = parts.find((p) => !TIME_RE.test(p));
-  if (bad) return { ok: false, error: `“${bad}” is not a 24-hour time like 08:00.` };
-  const times = [...new Set(parts.map((p) => p.slice(0, 5)))].sort();
+    .filter(Boolean)) {
+    const whole = parseOneTime(chunk);
+    if (whole) {
+      out.push(whole);
+      continue;
+    }
+    // "08:00 14:00 20:00" or "8AM 2PM": several times separated only by spaces.
+    const tokens = chunk.replace(/\s+(AM|PM|A\.M\.?|P\.M\.?|NN|MN)\b/gi, "$1").split(/\s+/);
+    for (const tok of tokens) {
+      const one = parseOneTime(tok);
+      if (!one) {
+        const hint = /^\d{1,2}(:\d{2})?$/.test(tok) ? " Add AM or PM (e.g. 8:00 AM)." : " Use a time like 8:00 AM or 2:00 PM.";
+        return { ok: false, error: `“${tok}” is not a time.${hint}` };
+      }
+      out.push(one);
+    }
+  }
+  const times = [...new Set(out)].sort();
   if (times.length > 24) return { ok: false, error: "At most 24 times." };
   return { ok: true, times };
 }
@@ -44,7 +75,7 @@ export function expectedSlots(order: OrderTiming, window: { start: Date; end: Da
   for (let d = firstDay; d <= lastDay; d = addDays(d, 1)) {
     const { year, month, day } = parseIsoDate(d);
     for (const t of order.prescribedTimes) {
-      const m = TIME_RE.exec(t);
+      const m = H24_RE.exec(t);
       if (!m) continue;
       const at = zonedWallTimeToUtc({ year, month, day, hour: Number(m[1]), minute: Number(m[2]) }, tz);
       if (at < window.start || at >= window.end) continue;

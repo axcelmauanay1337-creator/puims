@@ -29,6 +29,13 @@ export default async function NebulizationPage() {
           ) : undefined
         }
       />
+      {!canOrder ? (
+        <p role="note" data-testid="chief-order-note" className="mb-4 rounded-[12px] bg-info-soft px-4 py-3 text-[13px] text-info">
+          <b>New neb orders are entered from an RT account.</b> The Chief RT account can view and document doses but not enter orders. To enter one, sign in
+          with your RT account. If it isn&apos;t activated yet, go to <b>RT Staff</b>, tap <b>Get activation link</b> next to the name, and open that link to
+          set a password.
+        </p>
+      ) : null}
       <div className="mb-4 flex flex-wrap gap-3" aria-label="Status counts">
         {Object.entries(n.counts).map(([k, v]) => (
           <span key={k} className="flex items-center gap-1.5 text-[12px]">

@@ -127,7 +127,7 @@ describe("nebulization orders — only Respiratory Therapists (decision 2026-11-
     await expect(enterNebOrder(rt, { ...common, clientId: randomUUID(), frequency: "PRN", prescribedTimes: "08:00" })).rejects.toMatchObject({
       kind: "INVALID",
     });
-    await expect(enterNebOrder(rt, { ...common, clientId: randomUUID(), frequency: "TID", prescribedTimes: "8am" })).rejects.toMatchObject({ kind: "INVALID" });
+    await expect(enterNebOrder(rt, { ...common, clientId: randomUUID(), frequency: "TID", prescribedTimes: "8" })).rejects.toMatchObject({ kind: "INVALID" });
     const clientId = randomUUID();
     const r = await enterNebOrder(rt, { ...common, clientId, frequency: "BID", prescribedTimes: slotTimes().join(", ") });
     expect(r).toEqual({ id: clientId, duplicate: false });

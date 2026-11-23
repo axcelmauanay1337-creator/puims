@@ -41,7 +41,13 @@ describe("expected nebulization slots come only from the times written on the or
   it("parses written times strictly", () => {
     expect(parsePrescribedTimes("20:00, 08:00 14:00 08:00")).toEqual({ ok: true, times: ["08:00", "14:00", "20:00"] });
     expect(parsePrescribedTimes("")).toEqual({ ok: true, times: [] });
-    expect(parsePrescribedTimes("8am")).toMatchObject({ ok: false });
+    expect(parsePrescribedTimes("8am")).toEqual({ ok: true, times: ["08:00"] });
+    expect(parsePrescribedTimes("8:00 AM, 2:00 PM, 8:00 PM")).toEqual({ ok: true, times: ["08:00", "14:00", "20:00"] });
+    expect(parsePrescribedTimes("12 MN, 6 AM, 12 NN, 6 PM")).toEqual({ ok: true, times: ["00:00", "06:00", "12:00", "18:00"] });
+    expect(parsePrescribedTimes("12:00 AM 12:30 PM")).toEqual({ ok: true, times: ["00:00", "12:30"] });
+    expect(parsePrescribedTimes("8")).toMatchObject({ ok: false });
+    expect(parsePrescribedTimes("13 PM")).toMatchObject({ ok: false });
+    expect(parsePrescribedTimes("8:00")).toMatchObject({ ok: false });
     expect(parsePrescribedTimes("24:00")).toMatchObject({ ok: false });
     expect(parsePrescribedTimes("12:60")).toMatchObject({ ok: false });
   });

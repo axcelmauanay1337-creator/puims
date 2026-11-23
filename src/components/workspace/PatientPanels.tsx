@@ -142,7 +142,11 @@ export function PatientQuickActions({
         <Link href={`/nebulization/orders/new?patient=${patient.id}`} className={cls}>
           Add nebulization order
         </Link>
-      ) : null}
+      ) : (
+        <span className="inline-flex min-h-10 items-center rounded-[8px] border border-dashed border-line px-3 text-[12px] text-ink-2">
+          Neb orders: sign in with an RT account
+        </span>
+      )}
       {canSchedule ? (
         <>
           <BookAppointmentButton service="PFT" patient={patient} label="Book PFT" />

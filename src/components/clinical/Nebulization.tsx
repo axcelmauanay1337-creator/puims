@@ -438,13 +438,13 @@ export function NewOrderForm({ initialPatient = null }: { initialPatient?: { id:
           </select>
         </label>
         <label className={labelCls}>
-          Times written on the order <span className="font-normal text-ink-3">(e.g. 08:00, 14:00, 20:00)</span>
+          Times written on the order <span className="font-normal text-ink-3">(e.g. 8:00 AM, 2:00 PM, 8:00 PM)</span>
           <input
             className={inputCls}
             value={f.prescribedTimes}
             onChange={set("prescribedTimes")}
             disabled={f.frequency === "PRN"}
-            placeholder={f.frequency === "PRN" ? "Not applicable for PRN" : ""}
+            placeholder={f.frequency === "PRN" ? "Not applicable for PRN" : "8:00 AM, 2:00 PM, 8:00 PM"}
           />
         </label>
         <ManilaDateTime label="Order start" value={f.startAt} onChange={(v) => setF((x) => ({ ...x, startAt: v }))} required />
