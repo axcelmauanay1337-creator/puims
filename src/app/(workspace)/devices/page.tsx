@@ -49,7 +49,7 @@ export default async function DevicesPage() {
           title="Offline behaviour — current release"
           subtitle="A = internet + LAN · B = LAN/local server only · C = complete network outage"
         />
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Scrollable table">
           <table className="w-full min-w-[640px] text-[12px]">
             <caption className="sr-only">Offline behaviour matrix</caption>
             <thead>

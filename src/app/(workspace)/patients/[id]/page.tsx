@@ -34,6 +34,10 @@ export default async function PatientProfilePage({ params }: PageProps<"/patient
     sex: "Sex",
     category: "Category",
     ward_room: "Ward / room",
+    contact_info: "Contact info",
+    attending_physician: "Attending physician",
+    height_cm: "Height (cm)",
+    weight_kg: "Weight (kg)",
     voided_at: "Voided",
     void_reason: "Void reason",
   };
@@ -67,6 +71,9 @@ export default async function PatientProfilePage({ params }: PageProps<"/patient
           <Field k="Sex" v={p.sex === "M" ? "Male" : p.sex === "F" ? "Female" : "Not recorded"} />
           <Field k="Category" v={<Badge tone={p.category === "INP" ? "info" : "neutral"}>{p.category}</Badge>} />
           <Field k="Ward / room" v={p.wardRoom ?? "—"} />
+          <Field k="Contact info" v={p.contactInfo ?? "—"} />
+          <Field k="Attending physician" v={p.attendingPhysician ?? "—"} />
+          <Field k="Height · weight" v={`${p.heightCm !== null ? `${p.heightCm} cm` : "—"} · ${p.weightKg !== null ? `${p.weightKg} kg` : "—"}`} />
           <Field k="Record source" v={p.provenance === "IMPORT" ? "Imported (provenance retained)" : "Manual entry"} />
           <Field k="Created" v={formatDateTime(new Date(p.createdAt))} />
           <Field k="Last updated" v={formatDateTime(new Date(p.updatedAt))} />

@@ -46,7 +46,7 @@ export default async function FlowsheetPage({ params }: { params: Promise<{ id: 
           href="/ventilation"
           className="inline-flex min-h-9 items-center rounded-[var(--radius-control)] border border-line px-3 text-[13px] hover:bg-hover"
         >
-          ← Mechanical Ventilation
+          ← Vents / NIV
         </Link>
         <PrintButton label="Print flowsheet" />
         <span className="text-[12px] text-ink-3">Prints on A4 landscape. Units: pressures cmH₂O, volumes mL, MV L/min, Ti seconds.</span>

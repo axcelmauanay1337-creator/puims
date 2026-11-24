@@ -100,7 +100,7 @@ export function StaffAdmin({ rows, selfId }: { rows: StaffRowView[]; selfId: str
         </div>
       </section>
 
-      <div className="overflow-x-auto rounded-[var(--radius-card)] border border-line bg-surface">
+      <div className="overflow-x-auto rounded-[var(--radius-card)] border border-line bg-surface" tabIndex={0} role="region" aria-label="Staff accounts">
         <table className="w-full min-w-[760px] text-[13px]">
           <caption className="sr-only">Staff accounts</caption>
           <thead>

@@ -424,25 +424,17 @@ export async function listPatients() {
       category: PatientCategory;
       ward_room: string | null;
       provenance: string;
-      last_service: Date | null;
       precautions: Precaution[];
       own_supplies: OwnSupply[];
       special_endorsement: string | null;
-      on_vent: boolean;
-      niv: string | null;
-      neb_freqs: string[] | null;
-      tests: number;
+      contact_info: string | null;
+      attending_physician: string | null;
     }>(
-      `SELECT p.id, p.hospital_patient_id, p.full_name, p.date_of_birth, p.sex, p.category, p.ward_room, p.provenance, ls.last_service,
-              p.precautions, p.own_supplies, p.special_endorsement,
-              EXISTS (SELECT 1 FROM vent_encounter v WHERE v.patient_id = p.id AND v.disconnected_at IS NULL) AS on_vent,
-              (SELECT n.device FROM niv_encounter n WHERE n.patient_id = p.id AND n.ended_at IS NULL LIMIT 1) AS niv,
-              (SELECT array_agg(o.frequency) FROM neb_order o WHERE o.patient_id = p.id AND o.discontinued_at IS NULL AND (o.end_at IS NULL OR o.end_at > $1)) AS neb_freqs,
-              (SELECT count(*)::int FROM diagnostic_appointment d WHERE d.patient_id = p.id AND d.voided_at IS NULL AND d.status IN ('SCHEDULED','PENDING') AND d.scheduled_at >= $1 - interval '12 hours') AS tests
+      // Profile only: the masterlist does not show procedures or services (product owner, 2026-11-24).
+      `SELECT p.id, p.hospital_patient_id, p.full_name, p.date_of_birth, p.sex, p.category, p.ward_room, p.provenance,
+              p.precautions, p.own_supplies, p.special_endorsement, p.contact_info, p.attending_physician
          FROM patient p
-         LEFT JOIN (SELECT patient_id, max(occurred_at) AS last_service FROM service_event_v WHERE occurred_at <= $1 GROUP BY patient_id) ls ON ls.patient_id = p.id
         WHERE p.voided_at IS NULL ORDER BY p.full_name`,
-      [now],
     );
     return r.rows.map((p) => ({
       id: p.id,
@@ -454,16 +446,11 @@ export async function listPatients() {
       category: p.category,
       wardRoom: p.ward_room,
       provenance: p.provenance === "IMPORT" ? "IMPORT" : "MANUAL",
-      lastServiceIso: iso(p.last_service),
+      contactInfo: p.contact_info,
+      attendingPhysician: p.attending_physician,
       precautions: p.precautions,
       ownSupplies: p.own_supplies,
       endorsement: p.special_endorsement,
-      active: [
-        ...(p.on_vent ? ["Ventilator"] : []),
-        ...(p.niv ? [p.niv === "BIPAP" ? "BiPAP" : p.niv] : []),
-        ...(p.neb_freqs ?? []).map((f) => `Neb ${f}`),
-        ...(p.tests ? [`${p.tests} test(s) booked`] : []),
-      ],
     }));
   });
 }
@@ -484,8 +471,14 @@ export async function getPatientProfile(id: string) {
       precautions: Precaution[];
       own_supplies: OwnSupply[];
       special_endorsement: string | null;
+      contact_info: string | null;
+      attending_physician: string | null;
+      height_cm: string | null;
+      weight_kg: string | null;
     }>(
-      "SELECT id, hospital_patient_id, full_name, date_of_birth, sex, category, ward_room, provenance, created_at, updated_at, precautions, own_supplies, special_endorsement FROM patient WHERE id = $1 AND voided_at IS NULL",
+      `SELECT id, hospital_patient_id, full_name, date_of_birth, sex, category, ward_room, provenance, created_at, updated_at, precautions, own_supplies,
+              special_endorsement, contact_info, attending_physician, height_cm::text, weight_kg::text
+         FROM patient WHERE id = $1 AND voided_at IS NULL`,
       [id],
     );
     const p = pr.rows[0];
@@ -543,6 +536,10 @@ export async function getPatientProfile(id: string) {
         precautions: p.precautions,
         ownSupplies: p.own_supplies,
         endorsement: p.special_endorsement,
+        contactInfo: p.contact_info,
+        attendingPhysician: p.attending_physician,
+        heightCm: p.height_cm ? Number(p.height_cm) : null,
+        weightKg: p.weight_kg ? Number(p.weight_kg) : null,
       },
       encounters: enc.rows.map((e) => ({
         id: e.id,

@@ -31,7 +31,7 @@ export function RosterEditor({ roster }: { roster: Roster }) {
       <p role="status" aria-live="polite" className={`mb-2 min-h-5 text-[12px] ${message?.ok ? "text-success" : "text-danger"}`}>
         {message ? (message.ok ? `✓ ${message.text}` : message.text) : ""}
       </p>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Scrollable table">
         <table className="w-full min-w-[820px] border-collapse text-[12px]">
           <caption className="sr-only">Editable shift roster</caption>
           <thead>

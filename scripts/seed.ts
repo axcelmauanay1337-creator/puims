@@ -323,6 +323,15 @@ async function main() {
       ]);
       await c.query("UPDATE patient SET own_supplies = '{OWN_MESH_NEBULIZER,OWN_MEDICATION}', updated_by = $2 WHERE id = $1", [flagged[2].id, chief.id]);
     }
+    // 0017: synthetic profile details for some patients.
+    await c.query(
+      `UPDATE patient SET contact_info = 'Relative (synthetic) · 0917 000 ' || lpad((row_number)::text, 4, '0'),
+              attending_physician = (ARRAY['Dr. Demo Santos', 'Dr. Demo Reyes', 'Dr. Demo Ramos'])[1 + row_number % 3],
+              height_cm = 150 + (row_number % 30), weight_kg = 50 + (row_number % 35), updated_by = $1
+         FROM (SELECT id AS pid, row_number() OVER (ORDER BY full_name) AS row_number FROM patient WHERE voided_at IS NULL) x
+        WHERE patient.id = x.pid AND x.row_number % 3 <> 0`,
+      [chief.id],
+    );
     await c.query("COMMIT");
     const file = test ? ".seed-credentials.test.json" : ".seed-credentials.json";
     writeFileSync(

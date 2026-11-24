@@ -55,11 +55,11 @@ export interface PatientRow {
   category: string;
   wardRoom: string | null;
   provenance: string;
-  lastServiceIso: string | null;
+  contactInfo: string | null;
+  attendingPhysician: string | null;
   precautions: Precaution[];
   ownSupplies: OwnSupply[];
   endorsement: string | null;
-  active: string[];
 }
 
 export function PatientsTable({ rows }: { rows: PatientRow[] }) {
@@ -82,11 +82,6 @@ export function PatientsTable({ rows }: { rows: PatientRow[] }) {
           <span className="block font-medium hover:underline">{r.name}</span>
           <span className="mt-1 flex flex-wrap gap-1">
             <FlagChips flags={r} />
-            {r.active.map((a) => (
-              <span key={a} className="rounded-full bg-neutral-soft px-2 py-0.5 text-[11px] font-semibold text-ink-2">
-                {a}
-              </span>
-            ))}
           </span>
         </Link>
       ),
@@ -110,7 +105,13 @@ export function PatientsTable({ rows }: { rows: PatientRow[] }) {
       cell: (r) => <span className="text-[12px] text-ink-2">{r.provenance === "IMPORT" ? "Imported" : "Manual"}</span>,
       hideOnCard: true,
     },
-    { key: "last", header: "Last service", cell: (r) => dt(r.lastServiceIso), sort: (r) => ts(r.lastServiceIso) },
+    { key: "contact", header: "Contact info", cell: (r) => r.contactInfo ?? <span className="text-ink-3">—</span> },
+    {
+      key: "md",
+      header: "Attending physician",
+      cell: (r) => r.attendingPhysician ?? <span className="text-ink-3">—</span>,
+      sort: (r) => r.attendingPhysician ?? "",
+    },
   ];
   return (
     <DataTable
@@ -119,7 +120,7 @@ export function PatientsTable({ rows }: { rows: PatientRow[] }) {
       rowKey={(r) => r.id}
       caption="Patient masterlist"
       searchPlaceholder="Hospital no. or name"
-      searchText={(r) => `${r.hospitalId} ${r.name} ${r.wardRoom ?? ""}`}
+      searchText={(r) => `${r.hospitalId} ${r.name} ${r.wardRoom ?? ""} ${r.attendingPhysician ?? ""}`}
       filters={[
         {
           key: "cat",

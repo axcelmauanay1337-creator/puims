@@ -20,7 +20,7 @@ export default async function EditPatientPage({ params }: PageProps<"/patients/[
     <>
       <PageHeader
         title="Correct patient details"
-        crumbs={[{ label: "Patient Masterlist", href: "/patients" }, { label: "Patient profile", href: `/patients/${id}` }, { label: "Correct" }]}
+        crumbs={[{ label: "Patient Master", href: "/patients" }, { label: "Patient profile", href: `/patients/${id}` }, { label: "Correct" }]}
         description="Every change is kept in the record's correction history with who, when and why. Service history stays linked to this patient."
       />
       <PatientForm mode="correct" initial={p} />

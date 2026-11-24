@@ -252,7 +252,7 @@ export function RowTable({ rows, disabled }: { rows: ImportRowView[]; disabled: 
   const [open, setOpen] = useState<ImportRowView | null>(null);
   return (
     <>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Scrollable table">
         <table className="w-full min-w-[860px] text-[12px]">
           <caption className="sr-only">Staged rows</caption>
           <thead>

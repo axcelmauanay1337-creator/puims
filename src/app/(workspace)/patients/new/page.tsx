@@ -11,7 +11,7 @@ export default async function NewPatientPage() {
     <>
       <PageHeader
         title="Register patient"
-        crumbs={[{ label: "Patient Masterlist", href: "/patients" }, { label: "Register patient" }]}
+        crumbs={[{ label: "Patient Master", href: "/patients" }, { label: "Register patient" }]}
         description="Hospital number and date of birth are optional. Before saving, PUIMS shows any possible existing records for you to check — it never merges records on its own."
       />
       <PatientForm mode="register" />

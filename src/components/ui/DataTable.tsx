@@ -141,7 +141,12 @@ export function DataTable<T>({
       ) : (
         <>
           {/* Desktop / tablet table */}
-          <div className="hidden overflow-x-auto rounded-[var(--radius-card)] border border-line bg-surface md:block">
+          <div
+            className="hidden overflow-x-auto rounded-[var(--radius-card)] border border-line bg-surface md:block"
+            tabIndex={0}
+            role="region"
+            aria-label={caption}
+          >
             <table className="w-full border-collapse text-[13px]">
               <caption className="sr-only">{caption}</caption>
               <thead>

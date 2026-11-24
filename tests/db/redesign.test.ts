@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { getPool } from "@/server/db";
 import { enterNebOrder, hookIn } from "@/server/documentation";
+import { correctPatient, getPatientForEdit, registerPatient } from "@/server/clinical";
 import { formatDateTime, HOSPITAL_TZ, toLocalParts } from "@/lib/time/zoned";
 import type { Session } from "@/server/session";
 import {
@@ -66,6 +67,29 @@ describe("patient flags", () => {
     await expectPgError(o.query("UPDATE patient SET precautions = '{NOPE}' WHERE id = $1", [patientId]), "23514");
     const audit = await o.query("SELECT count(*)::int AS n FROM audit_log WHERE action = 'patient.flags_updated'");
     expect(audit.rows[0].n).toBeGreaterThan(0);
+  });
+});
+
+describe("patient profile details", () => {
+  it("saves contact, attending physician, height and weight; corrections are kept in history; bad values rejected", async () => {
+    const base = { fullName: "Profile, Synthetic Test", sex: "F", category: "OPD", dateOfBirth: "1980-02-03", hospitalPatientId: "", wardRoom: "" };
+    const r = await registerPatient(
+      rt,
+      { ...base, contactInfo: "Son · 0917 000 1234", attendingPhysician: "Dr. Demo Ramos", heightCm: "158", weightKg: "61.5" },
+      [],
+    );
+    expect(r.status).toBe("created");
+    const id = (r as { id: string }).id;
+    const e = (await getPatientForEdit(rt, id))!;
+    expect(e).toMatchObject({ contactInfo: "Son · 0917 000 1234", attendingPhysician: "Dr. Demo Ramos", heightCm: "158", weightKg: "61.5" });
+    const bad = await correctPatient(rt, id, e.updatedAt, { ...e, heightCm: "999" }, "");
+    expect(bad).toMatchObject({ status: "invalid", errors: { heightCm: expect.any(String) } });
+    expect(await correctPatient(rt, id, e.updatedAt, { ...e, attendingPhysician: "Dr. Demo Reyes" }, "")).toEqual({ status: "saved" });
+    const rev = await o.query(
+      "SELECT before_data ->> 'attending_physician' AS b, after_data ->> 'attending_physician' AS a FROM patient_revision WHERE patient_id = $1",
+      [id],
+    );
+    expect(rev.rows).toEqual([{ b: "Dr. Demo Ramos", a: "Dr. Demo Reyes" }]);
   });
 });
 

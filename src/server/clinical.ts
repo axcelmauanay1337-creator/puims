@@ -51,6 +51,10 @@ export interface PatientInput {
   dateOfBirth: string;
   hospitalPatientId: string;
   wardRoom: string;
+  contactInfo?: string;
+  attendingPhysician?: string;
+  heightCm?: string;
+  weightKg?: string;
 }
 
 export interface CleanPatient {
@@ -60,6 +64,10 @@ export interface CleanPatient {
   dateOfBirth: IsoDate | null;
   hospitalPatientId: string | null;
   wardRoom: string | null;
+  contactInfo: string | null;
+  attendingPhysician: string | null;
+  heightCm: number | null;
+  weightKg: number | null;
 }
 
 export function validatePatient(input: PatientInput, now: Date): { ok: true; value: CleanPatient } | { ok: false; errors: Record<string, string> } {
@@ -87,6 +95,22 @@ export function validatePatient(input: PatientInput, now: Date): { ok: true; val
     errors.hospitalPatientId = "Use letters, digits, space, dot, slash or dash (max 40).";
   const ward = input.wardRoom.trim().replace(/\s+/g, " ");
   if (ward.length > 60) errors.wardRoom = "Max 60 characters.";
+  const contact = (input.contactInfo ?? "").trim().replace(/\s+/g, " ");
+  if (contact.length > 120) errors.contactInfo = "Max 120 characters.";
+  const md = (input.attendingPhysician ?? "").trim().replace(/\s+/g, " ");
+  if (md.length > 120) errors.attendingPhysician = "Max 120 characters.";
+  const num = (raw: string | undefined, min: number, max: number, key: string, label: string) => {
+    const t = (raw ?? "").trim();
+    if (!t) return null;
+    const n = Number(t);
+    if (!Number.isFinite(n) || n < min || n > max) {
+      errors[key] = `${label}: enter a number from ${min} to ${max}.`;
+      return null;
+    }
+    return Math.round(n * 10) / 10;
+  };
+  const heightCm = num(input.heightCm, 20, 250, "heightCm", "Height (cm)");
+  const weightKg = num(input.weightKg, 0.3, 400, "weightKg", "Weight (kg)");
   if (Object.keys(errors).length) return { ok: false, errors };
   return {
     ok: true,
@@ -97,6 +121,10 @@ export function validatePatient(input: PatientInput, now: Date): { ok: true; val
       dateOfBirth: dob,
       hospitalPatientId: hid || null,
       wardRoom: ward || null,
+      contactInfo: contact || null,
+      attendingPhysician: md || null,
+      heightCm,
+      weightKg,
     },
   };
 }
@@ -176,9 +204,10 @@ export async function registerPatient(s: Session, input: PatientInput, confirmed
     if (candidates.some((x) => !confirmed.has(x.id))) return { status: "review" as const, candidates };
     try {
       const r = await c.query<{ id: string }>(
-        `INSERT INTO patient (hospital_patient_id, full_name, date_of_birth, sex, category, ward_room, provenance, created_by, updated_by)
-         VALUES ($1, $2, $3, $4, $5, $6, 'MANUAL', $7, $7) RETURNING id`,
-        [p.hospitalPatientId, p.fullName, p.dateOfBirth, p.sex, p.category, p.wardRoom, s.staffId],
+        `INSERT INTO patient (hospital_patient_id, full_name, date_of_birth, sex, category, ward_room, contact_info, attending_physician, height_cm, weight_kg,
+                              provenance, created_by, updated_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $8, $9, $10, $11, 'MANUAL', $7, $7) RETURNING id`,
+        [p.hospitalPatientId, p.fullName, p.dateOfBirth, p.sex, p.category, p.wardRoom, s.staffId, p.contactInfo, p.attendingPhysician, p.heightCm, p.weightKg],
       );
       await audit(c, "patient.registered", { reviewed_distinct_from: candidates.map((x) => x.id) }, { table: "patient", id: r.rows[0].id });
       return { status: "created" as const, id: r.rows[0].id };
@@ -220,8 +249,22 @@ export async function correctPatient(s: Session, id: string, expectedUpdatedAt: 
         return { status: "invalid", errors: { reason: "Give a reason for correcting identity details (at least 5 characters)." } };
       try {
         await c.query(
-          `UPDATE patient SET hospital_patient_id = $2, full_name = $3, date_of_birth = $4, sex = $5, category = $6, ward_room = $7, updated_by = $8 WHERE id = $1`,
-          [id, p.hospitalPatientId, p.fullName, p.dateOfBirth, p.sex, p.category, p.wardRoom, s.staffId],
+          `UPDATE patient SET hospital_patient_id = $2, full_name = $3, date_of_birth = $4, sex = $5, category = $6, ward_room = $7, updated_by = $8,
+                  contact_info = $9, attending_physician = $10, height_cm = $11, weight_kg = $12 WHERE id = $1`,
+          [
+            id,
+            p.hospitalPatientId,
+            p.fullName,
+            p.dateOfBirth,
+            p.sex,
+            p.category,
+            p.wardRoom,
+            s.staffId,
+            p.contactInfo,
+            p.attendingPhysician,
+            p.heightCm,
+            p.weightKg,
+          ],
         );
       } catch (e) {
         if (isUniqueViolation(e)) return { status: "invalid", errors: { hospitalPatientId: "Another patient already has this hospital number." } };
@@ -271,8 +314,16 @@ export async function getPatientForEdit(s: Session, id: string) {
       date_of_birth: string | null;
       hospital_patient_id: string | null;
       ward_room: string | null;
+      contact_info: string | null;
+      attending_physician: string | null;
+      height_cm: string | null;
+      weight_kg: string | null;
       updated_at: Date;
-    }>("SELECT id, full_name, sex, category, date_of_birth, hospital_patient_id, ward_room, updated_at FROM patient WHERE id = $1 AND voided_at IS NULL", [id]);
+    }>(
+      `SELECT id, full_name, sex, category, date_of_birth, hospital_patient_id, ward_room, contact_info, attending_physician, height_cm::text, weight_kg::text, updated_at
+         FROM patient WHERE id = $1 AND voided_at IS NULL`,
+      [id],
+    );
     const p = r.rows[0];
     if (!p) return null;
     return {
@@ -283,6 +334,10 @@ export async function getPatientForEdit(s: Session, id: string) {
       dateOfBirth: p.date_of_birth ?? "",
       hospitalPatientId: p.hospital_patient_id ?? "",
       wardRoom: p.ward_room ?? "",
+      contactInfo: p.contact_info ?? "",
+      attendingPhysician: p.attending_physician ?? "",
+      heightCm: p.height_cm ? String(Number(p.height_cm)) : "",
+      weightKg: p.weight_kg ? String(Number(p.weight_kg)) : "",
       updatedAt: new Date(p.updated_at).toISOString(),
     };
   });

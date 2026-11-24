@@ -5,7 +5,7 @@ export type Precaution = (typeof PRECAUTIONS)[number];
 export const PRECAUTION_LABELS: Record<Precaution, string> = {
   AIRBORNE: "Airborne",
   DROPLET: "Droplet",
-  CONTACT: "Contact",
+  CONTACT: "Contact precautions",
   FALL_RISK: "Fall risk",
   ASPIRATION: "Aspiration",
   BLEEDING_RISK: "Bleeding risk",

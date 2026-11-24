@@ -46,7 +46,7 @@ export default async function ShiftsPage() {
       {!editable ? (
         <Card aria-labelledby="roster-h">
           <CardHeader id="roster-h" title="Roster" subtitle="Yesterday through the next 6 operational days" />
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Scrollable table">
             <table className="w-full min-w-[640px] border-collapse text-[12px]">
               <caption className="sr-only">Shift roster by operational date</caption>
               <thead>

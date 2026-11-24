@@ -39,8 +39,8 @@ export function EquipmentBoard({ rows, canManage }: { rows: EquipmentRow[]; canM
     <>
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
-          ["Ventilators in use", stat("VENTILATOR")],
-          ["Ventilators free", String(rows.filter((r) => r.kind === "VENTILATOR" && r.status === "AVAILABLE").length)],
+          ["Board ventilators in use", stat("VENTILATOR")],
+          ["Board ventilators free", String(rows.filter((r) => r.kind === "VENTILATOR" && r.status === "AVAILABLE").length)],
           ["HFNC in use", stat("HFNC")],
           ["BiPAP / CPAP in use", stat("BIPAP")],
         ].map(([k, v]) => (
@@ -50,6 +50,9 @@ export function EquipmentBoard({ rows, canManage }: { rows: EquipmentRow[]; canM
           </div>
         ))}
       </div>
+      <p className="-mt-2 mb-4 text-[12px] text-ink-3">
+        Counts only machines added to this board. A patient hooked in with a typed ventilator name (no board unit) is shown on Vents / NIV but not counted here.
+      </p>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         {FILTERS.map((f) => (
           <button

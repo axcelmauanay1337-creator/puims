@@ -22,7 +22,20 @@ function Err({ msg }: { msg?: string }) {
 
 export function PatientForm({ mode, initial }: { mode: "register" | "correct"; initial?: PatientInput & { id: string; updatedAt: string } }) {
   const router = useRouter();
-  const [values, setValues] = useState<PatientInput>(initial ?? { fullName: "", sex: "", category: "", dateOfBirth: "", hospitalPatientId: "", wardRoom: "" });
+  const [values, setValues] = useState<PatientInput>(
+    initial ?? {
+      fullName: "",
+      sex: "",
+      category: "",
+      dateOfBirth: "",
+      hospitalPatientId: "",
+      wardRoom: "",
+      contactInfo: "",
+      attendingPhysician: "",
+      heightCm: "",
+      weightKg: "",
+    },
+  );
   const [reason, setReason] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -133,6 +146,33 @@ export function PatientForm({ mode, initial }: { mode: "register" | "correct"; i
           Ward / room <span className="font-normal text-ink-3">(optional)</span>
           <input className={input} value={values.wardRoom} onChange={set("wardRoom")} maxLength={60} autoComplete="off" />
           <Err msg={errors.wardRoom} />
+        </label>
+        <label className={labelCls}>
+          Contact info <span className="font-normal text-ink-3">(optional · relative and number)</span>
+          <input
+            className={input}
+            value={values.contactInfo ?? ""}
+            onChange={set("contactInfo")}
+            maxLength={120}
+            autoComplete="off"
+            placeholder="e.g. Daughter · 0917 000 0000"
+          />
+          <Err msg={errors.contactInfo} />
+        </label>
+        <label className={labelCls}>
+          Attending physician <span className="font-normal text-ink-3">(optional)</span>
+          <input className={input} value={values.attendingPhysician ?? ""} onChange={set("attendingPhysician")} maxLength={120} autoComplete="off" />
+          <Err msg={errors.attendingPhysician} />
+        </label>
+        <label className={labelCls}>
+          Height (cm) <span className="font-normal text-ink-3">(optional)</span>
+          <input className={input} inputMode="decimal" value={values.heightCm ?? ""} onChange={set("heightCm")} maxLength={6} autoComplete="off" />
+          <Err msg={errors.heightCm} />
+        </label>
+        <label className={labelCls}>
+          Weight (kg) <span className="font-normal text-ink-3">(optional)</span>
+          <input className={input} inputMode="decimal" value={values.weightKg ?? ""} onChange={set("weightKg")} maxLength={6} autoComplete="off" />
+          <Err msg={errors.weightKg} />
         </label>
         {mode === "correct" && (
           <label className={`${labelCls} sm:col-span-2`}>

@@ -480,7 +480,7 @@ export function HookInForm({
           </>
         ) : null}
       </div>
-      <p className="text-[12px] text-ink-3">After hook-in, use “Record settings” on the Mechanical Ventilation list to document the ventilator settings.</p>
+      <p className="text-[12px] text-ink-3">After hook-in, use “Record settings” on the Vents / NIV list to document the ventilator settings.</p>
       <label className="flex items-start gap-2 text-[13px]">
         <input
           type="checkbox"

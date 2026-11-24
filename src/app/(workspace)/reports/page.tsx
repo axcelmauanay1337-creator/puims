@@ -184,7 +184,7 @@ export default async function ReportsPage({ searchParams }: PageProps<"/reports"
 
       <Card className="mb-4" aria-labelledby="dx-h">
         <CardHeader id="dx-h" title="Diagnostics" subtitle={REPORT_DEFINITIONS.diagnosticRates.definition} />
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Scrollable table">
           <table className="w-full min-w-[640px] text-[13px]">
             <caption className="sr-only">Diagnostic appointments and outcome rates</caption>
             <thead>
@@ -222,7 +222,7 @@ export default async function ReportsPage({ searchParams }: PageProps<"/reports"
 
       <Card className="mb-4" aria-labelledby="wl-h">
         <CardHeader id="wl-h" title="Workload context by shift" subtitle={REPORT_DEFINITIONS.workload.excludes} />
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Scrollable table">
           <table className="w-full min-w-[480px] text-[13px]">
             <caption className="sr-only">Completed events and rostered RT-shifts by shift</caption>
             <thead>
@@ -253,7 +253,7 @@ export default async function ReportsPage({ searchParams }: PageProps<"/reports"
       {daily?.shifts && (
         <Card className="mb-4" aria-labelledby="shift-h">
           <CardHeader id="shift-h" title="Shift reports" subtitle="Each shift window of this operational day, by service" />
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Scrollable table">
             <table className="w-full min-w-[560px] text-[13px]">
               <caption className="sr-only">Completed events by shift and service</caption>
               <thead>

@@ -111,7 +111,7 @@ export function PatientPicker({ value, onChange }: { value: Hit | null; onChange
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search hospital no. or name"
-          aria-controls={listId}
+          aria-controls={q.trim().length >= 2 ? listId : undefined}
           autoComplete="off"
         />
       </label>
