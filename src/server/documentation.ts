@@ -1,14 +1,14 @@
 import "server-only";
 import { roleHas } from "@/lib/authz/permissions";
-import { dosesFromFirst, expectedSlots, FREQUENCY_HOURS, parsePrescribedTimes } from "@/lib/clinical/nebSlots";
+import { dosesFromFirst, expectedSlots, FREQUENCY_HOURS, isSingleDose, parsePrescribedTimes } from "@/lib/clinical/nebSlots";
 import { FREQUENCY_PRESETS, REASON_REQUIRED_STATUSES, type NebulizationStatus } from "@/lib/clinical/vocabulary";
 import { AIRWAY_TYPES, DISCONNECT_REASONS, REQUIRED_VENT_NUMBERS, VENT_MODES, VENT_NUMBERS, type VentNumberKey } from "@/lib/clinical/vent";
-import { formatDateTime, HOSPITAL_TZ, parseIsoDate, zonedWallTimeToUtc } from "@/lib/time/zoned";
+import { formatDateTime, HOSPITAL_TZ, parseIsoDate, toLocalParts, zonedWallTimeToUtc } from "@/lib/time/zoned";
 import { ClinicalError } from "./clinical";
 import { getNow } from "./clock";
 import { audit, getSettingNumber, tx, type Tx } from "./db";
 import type { Session } from "./session";
-import { assertUnitAssignable } from "./workspace";
+import { assertUnitAssignable, boardCount } from "./workspace";
 
 /**
  * Milestone 4 documentation. Rules (handoff §5–7, decisions 2026-11-22):
@@ -108,11 +108,12 @@ export async function enterNebOrder(s: Session, input: NebOrderInput): Promise<W
   const now = getNow();
   // The order is identified by the date/time the physician wrote it in the chart (picker value → "23 Nov 2026, 2:15 PM").
   let orderReference = input.orderReference.trim();
+  let orderedAt: Date | null = null;
   if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(orderReference)) {
-    const at = parseManilaWall(orderReference);
-    if (!at) throw new ClinicalError("INVALID", "Order date/time: enter a valid date and time.");
-    if (at.getTime() > now.getTime() + FUTURE_TOLERANCE_MS) throw new ClinicalError("INVALID", "Order date/time cannot be in the future.");
-    orderReference = formatDateTime(at);
+    orderedAt = parseManilaWall(orderReference);
+    if (!orderedAt) throw new ClinicalError("INVALID", "Order date/time: enter a valid date and time.");
+    if (orderedAt.getTime() > now.getTime() + FUTURE_TOLERANCE_MS) throw new ClinicalError("INVALID", "Order date/time cannot be in the future.");
+    orderReference = formatDateTime(orderedAt);
   }
   const prescriber = input.prescriber.trim();
   const medication = input.medicationAsOrdered.trim();
@@ -121,20 +122,33 @@ export async function enterNebOrder(s: Session, input: NebOrderInput): Promise<W
   if (!medication || medication.length > 300) throw new ClinicalError("INVALID", "Medication as ordered is required (max 300 characters).");
   if (!(FREQUENCY_PRESETS as readonly string[]).includes(input.frequency)) throw new ClinicalError("INVALID", "Select a frequency.");
   let times = parsePrescribedTimes(input.prescribedTimes);
-  if (input.firstDose !== undefined && FREQUENCY_HOURS[input.frequency]) {
-    const derived = dosesFromFirst(input.frequency, input.firstDose);
+  const usesFirstDose = input.firstDose !== undefined && (!!FREQUENCY_HOURS[input.frequency] || isSingleDose(input.frequency));
+  if (usesFirstDose) {
+    const derived = dosesFromFirst(input.frequency, input.firstDose ?? "");
     if (!derived) throw new ClinicalError("INVALID", "Enter the first dose time.");
     times = { ok: true, times: derived };
   }
   if (!times.ok) throw new ClinicalError("INVALID", times.error);
   if (input.frequency === "PRN" && times.times.length) throw new ClinicalError("INVALID", "PRN orders have no scheduled times; document each dose when given.");
-  const start = parseManilaWall(input.startAt);
+  // The order starts at its first dose: the first-dose time on the order date (or the next day when that is
+  // more than 2 hours before the order was written). PRN starts when ordered. An explicit start still wins.
+  let start: Date | null = input.startAt.trim() ? parseManilaWall(input.startAt) : null;
+  if (!input.startAt.trim() && orderedAt) {
+    if (usesFirstDose) {
+      const p = toLocalParts(orderedAt);
+      const day = `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
+      start = parseManilaWall(`${day}T${input.firstDose!.trim()}`);
+      if (start && start.getTime() < orderedAt.getTime() - 2 * 3_600_000) start = new Date(start.getTime() + 24 * 3_600_000);
+    } else start = orderedAt;
+  }
   if (!start) throw new ClinicalError("INVALID", "Order start: enter a date and time.");
   if (start.getTime() > now.getTime() + 7 * 24 * 3_600_000 || start.getTime() < now.getTime() - 14 * 24 * 3_600_000) {
     throw new ClinicalError("INVALID", "Order start must be within the last 14 days or the next 7 days.");
   }
   let end: Date | null = null;
-  if (input.endAt.trim()) {
+  if (isSingleDose(input.frequency) && usesFirstDose) {
+    end = new Date(start.getTime() + 60_000); // one expected dose only
+  } else if (input.endAt.trim()) {
     end = parseManilaWall(input.endAt);
     if (!end || end <= start) throw new ClinicalError("INVALID", "Order end must be after the start.");
   }
@@ -300,6 +314,9 @@ export async function hookIn(s: Session, input: HookInInput): Promise<WriteResul
     const p = await c.query("SELECT 1 FROM patient WHERE id = $1 AND voided_at IS NULL", [input.patientId]);
     if (!p.rowCount) throw new ClinicalError("INVALID", "Select a patient.");
     let equipmentId: string | null = null;
+    if (!input.equipmentId && (await boardCount(c, "VENTILATOR")) > 0) {
+      throw new ClinicalError("INVALID", "Pick the ventilator from the Equipment board. If the machine is not listed, ask the Chief RT to add it.");
+    }
     if (input.equipmentId) {
       const unit = await assertUnitAssignable(c, input.equipmentId, ["VENTILATOR"]);
       equipmentId = input.equipmentId;

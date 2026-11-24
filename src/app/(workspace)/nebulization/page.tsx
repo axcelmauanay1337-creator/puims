@@ -1,4 +1,4 @@
-import { ActiveOrders, NebOrderCards, NebWorklist } from "@/components/clinical/Nebulization";
+import { ActiveOrders, NebOrderCards, NebWorklist, ShowMore } from "@/components/clinical/Nebulization";
 import { AccessDenied } from "@/components/ui/AccessDenied";
 import { ButtonLink, PageHeader, StatusBadge, SyntheticDataNote } from "@/components/ui/primitives";
 import { formatLongDate } from "@/lib/time/zoned";
@@ -44,12 +44,15 @@ export default async function NebulizationPage() {
         ))}
       </div>
       <h2 className="mb-2 text-[15px] font-semibold">Orders today</h2>
-      <NebOrderCards rows={n.rows} canDocument={canDocument} />
-      <h2 className="mb-2 text-[15px] font-semibold">Worklist — this operational day (6:00 AM–6:00 AM)</h2>
-      <NebWorklist rows={n.rows} me={session.staffId} isChief={session.role === "CHIEF_RT_ADMIN"} canDocument={canDocument} />
-      <h2 className="mb-2 mt-8 text-[15px] font-semibold">Active orders</h2>
-      {!canOrder && <p className="mb-2 text-[12px] text-ink-3">Orders are entered and discontinued by Respiratory Therapists.</p>}
-      <ActiveOrders orders={n.activeOrders} canDocument={canDocument} canOrder={canOrder} />
+      <NebOrderCards rows={n.rows} canDocument={canDocument} prn={n.activeOrders.filter((o) => o.frequency === "PRN")} />
+      <ShowMore label="All doses today (search, void)">
+        <h2 className="mb-2 text-[15px] font-semibold">Worklist — this operational day (6:00 AM–6:00 AM)</h2>
+        <NebWorklist rows={n.rows} me={session.staffId} isChief={session.role === "CHIEF_RT_ADMIN"} canDocument={canDocument} />
+      </ShowMore>
+      <ShowMore label={`Active orders (${n.activeOrders.length}) — details, unscheduled dose, discontinue`}>
+        {!canOrder && <p className="mb-2 text-[12px] text-ink-3">Orders are entered and discontinued by Respiratory Therapists.</p>}
+        <ActiveOrders orders={n.activeOrders} canDocument={canDocument} canOrder={canOrder} />
+      </ShowMore>
       <SyntheticDataNote />
     </>
   );

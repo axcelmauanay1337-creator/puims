@@ -152,6 +152,10 @@ describe("ventilator hook-in with an equipment unit", () => {
     const v = await o.query("SELECT ventilator_ref FROM vent_encounter WHERE patient_id = $1 AND disconnected_at IS NULL", [patientId]);
     expect(v.rows[0].ventilator_ref).toBe("TV-01");
     await expect(hookIn(rt, { ...base, clientId: randomUUID(), patientId: other, wardRoom: "ICU-S" })).rejects.toThrow(/already on another patient/);
+    // With ventilators on the board, a typed identifier is no longer accepted.
+    await expect(
+      hookIn(rt, { ...base, equipmentId: undefined, ventilatorRef: "TYPED-VENT", clientId: randomUUID(), patientId: other, wardRoom: "ICU-S" }),
+    ).rejects.toThrow(/Equipment board/);
   });
 });
 
@@ -184,6 +188,19 @@ describe("neb order date/time from the chart", () => {
     await expect(enterNebOrder(rt, { ...base, clientId: randomUUID(), orderReference: local(ordered), frequency: "Q6H", firstDose: "" })).rejects.toThrow(
       /first dose/,
     );
+    // No "Order start": the order starts at its first dose (STAT/ONCE expect exactly one dose).
+    const fd = toLocalParts(new Date(ordered.getTime() + 30 * 60_000), HOSPITAL_TZ);
+    const fdTime = `${z(fd.hour)}:${z(fd.minute)}`;
+    const once = randomUUID();
+    await enterNebOrder(rt, { ...base, startAt: "", clientId: once, orderReference: local(ordered), frequency: "ONCE", firstDose: fdTime });
+    const ow = await o.query("SELECT start_at, end_at, prescribed_times::text[] AS t FROM neb_order WHERE id = $1", [once]);
+    expect(ow.rows[0].t.map((x: string) => x.slice(0, 5))).toEqual([fdTime]);
+    expect(new Date(ow.rows[0].start_at).getTime()).toBe(ordered.getTime() + 30 * 60_000);
+    expect(new Date(ow.rows[0].end_at).getTime() - new Date(ow.rows[0].start_at).getTime()).toBe(60_000);
+    const qid = randomUUID();
+    await enterNebOrder(rt, { ...base, startAt: "", clientId: qid, orderReference: local(ordered), frequency: "QID", firstDose: "06:00" });
+    const qw = await o.query("SELECT prescribed_times::text[] AS t FROM neb_order WHERE id = $1", [qid]);
+    expect(qw.rows[0].t.map((x: string) => x.slice(0, 5))).toEqual(["00:00", "06:00", "12:00", "18:00"]);
   });
 });
 

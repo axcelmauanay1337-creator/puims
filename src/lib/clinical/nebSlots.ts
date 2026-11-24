@@ -17,8 +17,11 @@ const H24_RE = /^([01]\d|2[0-3]):([0-5]\d)(?::00)?$/;
 const H12_RE = /^(\d{1,2})(?::([0-5]\d))?\s*(AM|PM|A\.M\.?|P\.M\.?|NN|MN)$/i;
 
 /** Frequencies offered when entering an order, and the interval in hours for the scheduled ones. */
-export const ORDER_FREQUENCIES = ["Q4H", "Q6H", "Q8H", "Q12H", "BID", "TID", "PRN"] as const;
-export const FREQUENCY_HOURS: Record<string, number> = { Q4H: 4, Q6H: 6, Q8H: 8, Q12H: 12, BID: 12, TID: 8 };
+export const ORDER_FREQUENCIES = ["Q4H", "Q6H", "Q8H", "Q12H", "BID", "TID", "QID", "STAT", "ONCE", "PRN"] as const;
+export const FREQUENCY_HOURS: Record<string, number> = { Q4H: 4, Q6H: 6, Q8H: 8, Q12H: 12, BID: 12, TID: 8, QID: 6 };
+/** Single-dose frequencies: one expected dose at the first-dose time, then the order ends. */
+export const SINGLE_DOSE = ["STAT", "ONCE"] as const;
+export const isSingleDose = (f: string) => (SINGLE_DOSE as readonly string[]).includes(f);
 
 /**
  * Dose times for one day, counted from the first dose: Q6H from 8:00 PM → 02:00, 08:00, 14:00, 20:00.
@@ -26,9 +29,10 @@ export const FREQUENCY_HOURS: Record<string, number> = { Q4H: 4, Q6H: 6, Q8H: 8,
  */
 export function dosesFromFirst(frequency: string, firstDose: string): string[] | null {
   const h = FREQUENCY_HOURS[frequency];
-  if (!h) return [];
+  if (!h && !isSingleDose(frequency)) return [];
   const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(firstDose.trim());
   if (!m) return null;
+  if (!h) return [`${m[1]}:${m[2]}`];
   const start = Number(m[1]);
   const out = Array.from({ length: Math.round(24 / h) }, (_, i) => `${String((start + i * h) % 24).padStart(2, "0")}:${m[2]}`);
   return [...new Set(out)].sort();

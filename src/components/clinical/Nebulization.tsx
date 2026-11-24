@@ -8,7 +8,7 @@ import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Modal } from "@/components/ui/Modal";
 import { Badge, StatusBadge } from "@/components/ui/primitives";
 import { FlagBoxes, FlagChips, type FlagsView } from "@/components/workspace/Flags";
-import { dosesFromFirst, FREQUENCY_HOURS, ORDER_FREQUENCIES } from "@/lib/clinical/nebSlots";
+import { dosesFromFirst, FREQUENCY_HOURS, isSingleDose, ORDER_FREQUENCIES } from "@/lib/clinical/nebSlots";
 import { formatClock, formatDayTime, formatTime } from "@/lib/time/zoned";
 import type { NebRow } from "@/server/nebulization";
 import { Buttons, FormError, inputCls, labelCls, ManilaDateTime, manilaLocalOf, manilaNowLocal, PatientPicker, useClientId } from "./fields";
@@ -150,8 +150,26 @@ function ReasonDialog({
   );
 }
 
+/** Keeps the full tables out of the way until needed (the order cards are the main view). */
+export function ShowMore({ label, children }: { label: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mb-6">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="min-h-10 w-full rounded-[10px] border border-line bg-surface px-4 text-left text-[14px] font-semibold hover:bg-hover"
+      >
+        {open ? "▾" : "▸"} {label}
+      </button>
+      {open ? <div className="mt-3">{children}</div> : null}
+    </div>
+  );
+}
+
 /** One card per order with today's dose times as chips (tap an open time to document it). */
-export function NebOrderCards({ rows, canDocument }: { rows: NebRow[]; canDocument: boolean }) {
+export function NebOrderCards({ rows, canDocument, prn = [] }: { rows: NebRow[]; canDocument: boolean; prn?: ActiveOrder[] }) {
   const [dose, setDose] = useState<DoseTarget | null>(null);
   const byOrder = new Map<string, NebRow[]>();
   for (const r of rows) {
@@ -161,7 +179,7 @@ export function NebOrderCards({ rows, canDocument }: { rows: NebRow[]; canDocume
     byOrder.set(r.orderId, list);
   }
   const cards = [...byOrder.values()].map((list) => list.sort((a, b) => Date.parse(a.scheduledIso!) - Date.parse(b.scheduledIso!)));
-  if (!cards.length)
+  if (!cards.length && !prn.length)
     return <p className="mb-6 rounded-[12px] border border-dashed border-line px-4 py-6 text-center text-[13px] text-ink-3">No scheduled doses today.</p>;
   const tone = (r: NebRow) =>
     r.status === "COMPLETED"
@@ -222,6 +240,29 @@ export function NebOrderCards({ rows, canDocument }: { rows: NebRow[]; canDocume
             </div>
           );
         })}
+        {prn.map((o) => (
+          <div key={o.id} className="flex min-w-0 flex-col gap-2 rounded-[14px] border border-line bg-surface p-4">
+            <Link href={`/patients/${o.patient.id}`} className="min-w-0 truncate text-[15px] font-semibold hover:underline">
+              {o.patient.name}
+            </Link>
+            <span className="text-[14px]">
+              {o.medication} · <strong>PRN</strong>
+            </span>
+            {canDocument ? (
+              <button
+                type="button"
+                onClick={() =>
+                  setDose({ orderId: o.id, orderReference: o.orderReference, medication: o.medication, patient: o.patient.name, scheduledIso: null })
+                }
+                className="min-h-9 self-start rounded-[8px] border border-line px-3 text-[13px] font-semibold hover:bg-hover"
+              >
+                Document PRN dose
+              </button>
+            ) : (
+              <span className="text-[12px] text-ink-3">As needed — no fixed times</span>
+            )}
+          </div>
+        ))}
       </div>
     </>
   );
@@ -464,7 +505,7 @@ export function NewOrderForm({ initialPatient = null }: { initialPatient?: { id:
     frequency: "Q6H",
     prescribedTimes: "",
     firstDose: "20:00",
-    startAt: manilaNowLocal(),
+    startAt: "",
     endAt: "",
   });
   const [error, setError] = useState<string | null>(null);
@@ -521,7 +562,7 @@ export function NewOrderForm({ initialPatient = null }: { initialPatient?: { id:
                 type="button"
                 role="radio"
                 aria-checked={f.frequency === x}
-                onClick={() => setF((v) => ({ ...v, frequency: x }))}
+                onClick={() => setF((v) => ({ ...v, frequency: x, firstDose: x === "STAT" ? manilaNowLocal().slice(11, 16) : v.firstDose }))}
                 className={`min-h-10 rounded-full border px-4 text-[14px] font-semibold ${
                   f.frequency === x ? "border-accent bg-accent text-white" : "border-line bg-surface hover:bg-hover"
                 }`}
@@ -533,12 +574,12 @@ export function NewOrderForm({ initialPatient = null }: { initialPatient?: { id:
         </fieldset>
         {f.frequency !== "PRN" ? (
           <label className={labelCls}>
-            First dose time <span className="text-danger">*</span>
+            {isSingleDose(f.frequency) ? "Dose time" : "First dose time"} <span className="text-danger">*</span>
             <input type="time" className={inputCls} value={f.firstDose} onChange={set("firstDose")} required aria-describedby="neb-dose-preview" />
           </label>
         ) : null}
         <div id="neb-dose-preview" className="flex flex-col gap-2 rounded-[12px] bg-info-soft px-3.5 py-3 text-info sm:col-span-2" aria-live="polite">
-          <strong className="text-[13px]">Doses this order will expect (every 24 h)</strong>
+          <strong className="text-[13px]">{isSingleDose(f.frequency) ? "This order expects one dose" : "Doses this order will expect (every 24 h)"}</strong>
           <div className="flex flex-wrap gap-1.5" data-testid="neb-dose-preview">
             {ordered === null ? (
               <span className="rounded-[8px] bg-surface px-2.5 py-1.5 text-[13px] font-semibold">As needed, no fixed times</span>
@@ -553,11 +594,14 @@ export function NewOrderForm({ initialPatient = null }: { initialPatient?: { id:
           <span className="text-[12px]">
             {f.frequency === "PRN"
               ? "PRN doses are documented only when given."
-              : `${f.frequency} = every ${hours} hours, counted from the first dose. Each time becomes a task on Today when it is due; a dose is never marked done by itself.`}
+              : isSingleDose(f.frequency)
+                ? `${f.frequency}: a single dose; the order ends after it. It becomes a task on Today; it is never marked done by itself.`
+                : `${f.frequency} = ${f.frequency === "QID" ? "4 times a day, " : ""}every ${hours} hours, counted from the first dose. The order starts at the first dose. Each time becomes a task on Today when it is due; a dose is never marked done by itself.`}
           </span>
         </div>
-        <ManilaDateTime label="Order start" value={f.startAt} onChange={(v) => setF((x) => ({ ...x, startAt: v }))} required />
-        <ManilaDateTime label="Order end (optional)" value={f.endAt} onChange={(v) => setF((x) => ({ ...x, endAt: v }))} />
+        {!isSingleDose(f.frequency) ? (
+          <ManilaDateTime label="Order end (optional)" value={f.endAt} onChange={(v) => setF((x) => ({ ...x, endAt: v }))} />
+        ) : null}
       </div>
       <FormError error={error} />
       <div className="flex gap-2">

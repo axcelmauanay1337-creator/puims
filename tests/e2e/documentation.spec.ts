@@ -31,9 +31,9 @@ test.describe("nebulization (RT)", () => {
     // The current minute is always inside the current operational day and not in the future.
     await page.getByLabel(/First dose time/).fill(manila(new Date()).hm);
     await expect(page.getByTestId("neb-dose-preview").locator("span")).toHaveCount(2);
-    await page.getByLabel(/Order start/).fill(manila(new Date(Date.now() - 2 * 3_600_000)).date);
     await page.getByRole("button", { name: "Save order" }).click();
     await expect(page).toHaveURL(/\/nebulization$/);
+    await page.getByRole("button", { name: /All doses today/ }).click();
     await page.getByRole("searchbox", { name: /Search Nebulization worklist/i }).fill(ref);
     // Q12H from the current minute: this dose (Pending) and, if still today, the one 12 h later (Scheduled).
     const row = page.locator("table").first().locator("tr").filter({ hasText: ref }).first();
@@ -42,6 +42,7 @@ test.describe("nebulization (RT)", () => {
 
   test("document the dose as given, then void it with a reason (the dose re-opens)", async ({ page }) => {
     await page.goto("/nebulization");
+    await page.getByRole("button", { name: /All doses today/ }).click();
     await page.getByRole("searchbox", { name: /Search Nebulization worklist/i }).fill(ref);
     const row = page.locator("table").first().locator("tr").filter({ hasText: ref }).first();
     await row.getByRole("button", { name: "Document" }).click();
@@ -62,6 +63,7 @@ test.describe("nebulization (RT)", () => {
 
   test("a not-given outcome requires a reason", async ({ page }) => {
     await page.goto("/nebulization");
+    await page.getByRole("button", { name: /All doses today/ }).click();
     await page.getByRole("searchbox", { name: /Search Nebulization worklist/i }).fill(ref);
     const row = page.locator("table").first().locator("tr").filter({ hasText: ref }).first();
     await row.getByRole("button", { name: "Document" }).click();
@@ -78,7 +80,8 @@ test.describe("orders are RT-only (decision 2026-11-22)", () => {
   test("the Chief RT has no New order button and is refused by the server", async ({ page }) => {
     await page.goto("/nebulization");
     await expect(page.getByRole("link", { name: "New order" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Discontinue" })).toHaveCount(0);
+    await page.getByRole("button", { name: /Active orders/ }).click();
+    await expect(page.getByRole("button", { name: "Discontinue", exact: true })).toHaveCount(0);
     await page.goto("/nebulization/orders/new");
     await expect(page.getByTestId("access-denied")).toBeVisible();
   });
@@ -88,7 +91,7 @@ test.describe("ventilation and tubing (RT)", () => {
   test.use({ storageState: STATE.rt });
   test.describe.configure({ mode: "serial" });
   const name = `Ventflow, Synthetic ${Date.now() % 100000}`;
-  const vent = `VENT-E2E-${Date.now() % 10000}`;
+  let vent = `VENT-E2E-${Date.now() % 10000}`;
 
   test("hook-in with a documented new circuit, replace tubing, then disconnect", async ({ page }) => {
     // A fresh patient so no overlapping encounter exists.
@@ -101,7 +104,10 @@ test.describe("ventilation and tubing (RT)", () => {
 
     await page.goto("/ventilation/new");
     await pickPatient(page, name.split(",")[0]);
-    await page.getByLabel(/Ventilator identifier/).fill(vent);
+    // The equipment board has ventilators, so hook-in must pick a free board unit (no typed names).
+    const unitSelect = page.getByLabel(/Ventilator \(free units\)/);
+    await unitSelect.selectOption({ index: 1 });
+    vent = ((await unitSelect.locator("option:checked").textContent()) ?? "").split(" · ")[0].trim();
     await page.getByLabel(/Ward \/ room/).fill("ICU-E2E");
     await page.getByLabel(/Hook-in time/).fill(manila(new Date(Date.now() - 60 * 60_000)).date);
     await page.getByLabel(/new ventilator circuit was installed/).check();

@@ -383,8 +383,11 @@ export function HookInForm({
   intervalDays,
   initialPatient = null,
   units = [],
+  boardRequired = false,
 }: {
   intervalDays: number;
+  /** True once the equipment board has ventilators: then a board unit must be picked (no typed names). */
+  boardRequired?: boolean;
   initialPatient?: { id: string; title: string; subtitle: string; wardRoom?: string | null } | null;
   /** Free ventilators on the equipment board. */
   units?: Array<{ id: string; code: string; model: string; rented: boolean }>;
@@ -425,11 +428,16 @@ export function HookInForm({
     >
       <PatientPicker value={patient} onChange={setPatient} />
       <div className="grid gap-4 sm:grid-cols-2">
+        {boardRequired && !units.length ? (
+          <p role="alert" className="rounded-[10px] bg-warning-soft px-3 py-2 text-[13px] text-warning sm:col-span-2">
+            No free ventilator on the Equipment board (all in use, out of service or due for maintenance). Ask the Chief RT to add or release a unit.
+          </p>
+        ) : null}
         {units.length ? (
           <label className={labelCls}>
             Ventilator (free units) <span className="text-danger">*</span>
-            <select className={inputCls} value={f.equipmentId} onChange={(e) => setF((x) => ({ ...x, equipmentId: e.target.value }))}>
-              <option value="">Other / not on the board…</option>
+            <select className={inputCls} value={f.equipmentId} required={boardRequired} onChange={(e) => setF((x) => ({ ...x, equipmentId: e.target.value }))}>
+              <option value="">{boardRequired ? "Choose a machine…" : "Other / not on the board…"}</option>
               {units.map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.code} · {u.model}
@@ -439,7 +447,7 @@ export function HookInForm({
             </select>
           </label>
         ) : null}
-        {!f.equipmentId ? (
+        {!f.equipmentId && !boardRequired ? (
           <label className={labelCls}>
             Ventilator identifier <span className="text-danger">*</span>
             <input

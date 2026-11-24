@@ -424,6 +424,8 @@ export interface HandoverCandidate {
   slotAt: string | null;
   summary: string;
   patient: string;
+  /** Needs the incoming RT's attention (late/missed, overdue, new this shift); ticked by default. */
+  problem: boolean;
 }
 
 /**
@@ -435,8 +437,17 @@ async function gatherCandidates(c: Tx, ref: ShiftRef, now: Date): Promise<Handov
   const recv = shiftWindow(receivingShift(ref).operationalDate, receivingShift(ref).shift);
   const pat = (name: string, hid: string | null) => `${name}${hid ? ` · ${hid}` : ""}`;
 
-  const vent = await c.query<{ id: string; ventilator_ref: string; ward_room: string; name: string; hid: string | null; next_due: Date | null }>(
-    `SELECT e.id, e.ventilator_ref, e.ward_room, p.full_name AS name, p.hospital_patient_id AS hid,
+  const handed = shiftWindow(ref.operationalDate, ref.shift);
+  const vent = await c.query<{
+    id: string;
+    ventilator_ref: string;
+    ward_room: string;
+    name: string;
+    hid: string | null;
+    next_due: Date | null;
+    hooked_at: Date;
+  }>(
+    `SELECT e.id, e.ventilator_ref, e.ward_room, p.full_name AS name, p.hospital_patient_id AS hid, e.hooked_at,
             (SELECT t.next_due_at FROM tubing_event t WHERE t.encounter_id = e.id AND t.voided_at IS NULL ORDER BY t.installed_at DESC LIMIT 1) AS next_due
        FROM vent_encounter e JOIN patient p ON p.id = e.patient_id
       WHERE e.disconnected_at IS NULL AND e.hooked_at <= $1 ORDER BY e.ward_room`,
@@ -451,13 +462,21 @@ async function gatherCandidates(c: Tx, ref: ShiftRef, now: Date): Promise<Handov
       kind: "VENTILATOR_ENCOUNTER",
       refId: e.id,
       slotAt: null,
-      summary: `Active ventilator ${e.ventilator_ref} · ${e.ward_room}`,
+      summary: `${new Date(e.hooked_at) >= handed.start ? "New hook-in this shift" : "Active ventilator"} ${e.ventilator_ref} · ${e.ward_room}`,
       patient: pat(e.name, e.hid),
+      problem: new Date(e.hooked_at) >= handed.start,
     });
     const t = assessFromDue(e.next_due ? new Date(e.next_due) : null, now, policy);
     if (t.status !== "CURRENT") {
       const label = { OVERDUE: "overdue", DUE: "due this operational day", UPCOMING: "upcoming", NO_RECORD: "no documented installation" }[t.status];
-      out.push({ kind: "TUBING", refId: e.id, slotAt: null, summary: `Tubing ${label} · ${e.ventilator_ref}`, patient: pat(e.name, e.hid) });
+      out.push({
+        kind: "TUBING",
+        refId: e.id,
+        slotAt: null,
+        summary: `Tubing ${label} · ${e.ventilator_ref}`,
+        patient: pat(e.name, e.hid),
+        problem: t.status !== "UPCOMING",
+      });
     }
   }
 
@@ -468,9 +487,16 @@ async function gatherCandidates(c: Tx, ref: ShiftRef, now: Date): Promise<Handov
     const at = n.scheduledIso ?? n.actualIso!;
     const label = `Nebulization ${n.status.toLowerCase().replace("_", " ")} · ${n.orderReference} · ${formatTime(new Date(at))}`;
     if (!n.documented && (n.status === "PENDING" || n.status === "SCHEDULED")) {
-      out.push({ kind: "NEBULIZATION_ORDER", refId: n.orderId, slotAt: n.scheduledIso, summary: label, patient: pat(n.patient.name, n.patient.hospitalId) });
+      out.push({
+        kind: "NEBULIZATION_ORDER",
+        refId: n.orderId,
+        slotAt: n.scheduledIso,
+        summary: label,
+        patient: pat(n.patient.name, n.patient.hospitalId),
+        problem: n.status === "PENDING",
+      });
     } else if (n.documented && (n.status === "DELAYED" || n.status === "IN_PROGRESS")) {
-      out.push({ kind: "NEBULIZATION_ADMIN", refId: n.id!, slotAt: null, summary: label, patient: pat(n.patient.name, n.patient.hospitalId) });
+      out.push({ kind: "NEBULIZATION_ADMIN", refId: n.id!, slotAt: null, summary: label, patient: pat(n.patient.name, n.patient.hospitalId), problem: true });
     }
   }
 
@@ -489,6 +515,7 @@ async function gatherCandidates(c: Tx, ref: ShiftRef, now: Date): Promise<Handov
       slotAt: null,
       summary: `${svc} ${d.status.toLowerCase().replace("_", " ")} · ${formatTime(new Date(d.scheduled_at))}`,
       patient: pat(d.name, d.hid),
+      problem: d.status !== "SCHEDULED" || new Date(d.scheduled_at) < now,
     });
   }
   return out;

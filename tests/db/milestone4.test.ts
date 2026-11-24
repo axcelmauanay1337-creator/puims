@@ -56,6 +56,8 @@ beforeAll(async () => {
   reseed();
   o = owner();
   await o.connect();
+  // These tests cover the no-equipment-board mode (typed ventilator identifiers); the board rule is tested in redesign.test.ts.
+  await o.query("UPDATE equipment SET retired_at = now() WHERE kind = 'VENTILATOR'");
   patientId = (
     await o.query("INSERT INTO patient (full_name, category, sex, ward_room) VALUES ('Milestone, Four Synthetic', 'INP', 'F', 'ICU-9') RETURNING id")
   ).rows[0].id;

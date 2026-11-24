@@ -18,13 +18,47 @@ const KIND_LABEL = {
 export function HandoverComposer({ draft, isChief }: { draft: HandoverDraft; isChief: boolean }) {
   const router = useRouter();
   const key = (k: string, id: string, slot: string | null = null) => `${k}:${id}:${slot ?? ""}`;
-  const [selected, setSelected] = useState<Set<string>>(new Set(draft.candidates.map((c) => key(c.kind, c.refId, c.slotAt))));
+  const [selected, setSelected] = useState<Set<string>>(new Set(draft.candidates.filter((c) => c.problem).map((c) => key(c.kind, c.refId, c.slotAt))));
+  const [showRoutine, setShowRoutine] = useState(false);
   const [notes, setNotes] = useState("");
   const [equipment, setEquipment] = useState("");
   const [incoming, setIncoming] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const label = `${SHIFT_DEFINITIONS[draft.shift.shift].label} shift · ${formatShortDate(draft.shift.operationalDate)}`;
+
+  const problems = draft.candidates.filter((c) => c.problem);
+  const routine = draft.candidates.filter((c) => !c.problem);
+  const itemList = (list: typeof draft.candidates) => (
+    <ul className="mt-1 max-h-72 divide-y divide-line-soft overflow-y-auto rounded-[7px] border border-line">
+      {list.map((c) => {
+        const k = key(c.kind, c.refId, c.slotAt);
+        return (
+          <li key={k}>
+            <label className="flex cursor-pointer items-start gap-2.5 px-3 py-2 text-[12px] hover:bg-hover">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4"
+                checked={selected.has(k)}
+                onChange={(e) =>
+                  setSelected((x) => {
+                    const n = new Set(x);
+                    if (e.target.checked) n.add(k);
+                    else n.delete(k);
+                    return n;
+                  })
+                }
+              />
+              <span>
+                <span className="font-semibold">{KIND_LABEL[c.kind]}</span> · {c.summary}
+                <span className="block text-ink-3">{c.patient}</span>
+              </span>
+            </label>
+          </li>
+        );
+      })}
+    </ul>
+  );
 
   if (draft.alreadyWritten) return null;
   if (!draft.rostered && !isChief) {
@@ -65,40 +99,27 @@ export function HandoverComposer({ draft, isChief }: { draft: HandoverDraft; isC
         {!draft.rostered && isChief ? " You are not rostered on this shift; it will be recorded as written by you." : ""}
       </p>
       <fieldset className="mt-3">
-        <legend className="text-[12px] font-semibold text-ink-2">Open items to carry forward ({selected.size} selected)</legend>
-        {draft.candidates.length === 0 ? (
-          <p className="mt-1 text-[12px] text-ink-3">No open items found.</p>
-        ) : (
-          <ul className="mt-1 max-h-72 divide-y divide-line-soft overflow-y-auto rounded-[7px] border border-line">
-            {draft.candidates.map((c) => {
-              const k = key(c.kind, c.refId, c.slotAt);
-              return (
-                <li key={k}>
-                  <label className="flex cursor-pointer items-start gap-2.5 px-3 py-2 text-[12px] hover:bg-hover">
-                    <input
-                      type="checkbox"
-                      className="mt-0.5 h-4 w-4"
-                      checked={selected.has(k)}
-                      onChange={(e) =>
-                        setSelected((s) => {
-                          const n = new Set(s);
-                          if (e.target.checked) n.add(k);
-                          else n.delete(k);
-                          return n;
-                        })
-                      }
-                    />
-                    <span>
-                      <span className="font-semibold">{KIND_LABEL[c.kind]}</span> · {c.summary}
-                      <span className="block text-ink-3">{c.patient}</span>
-                    </span>
-                  </label>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        <legend className="text-[12px] font-semibold text-ink-2">
+          Needs attention ({problems.filter((c) => selected.has(key(c.kind, c.refId, c.slotAt))).length} ticked)
+        </legend>
+        <p className="mt-0.5 text-[11px] text-ink-3">
+          Late or missed doses, overdue tubing, new hook-ins and tests not yet done. Untick anything already sorted.
+        </p>
+        {problems.length === 0 ? <p className="mt-1 text-[12px] text-ink-3">Nothing needs attention.</p> : itemList(problems)}
       </fieldset>
+      {routine.length ? (
+        <div className="mt-3">
+          <button
+            type="button"
+            aria-expanded={showRoutine}
+            onClick={() => setShowRoutine((v) => !v)}
+            className="min-h-9 rounded-[7px] border border-line px-3 text-[12px] font-medium hover:bg-hover"
+          >
+            {showRoutine ? "Hide" : "Show"} routine items ({routine.length}) — running ventilators, upcoming doses and tests
+          </button>
+          {showRoutine ? itemList(routine) : null}
+        </div>
+      ) : null}
       <div className="mt-3 grid gap-3 md:grid-cols-2">
         <label className="block text-[12px] font-medium text-ink-2">
           Handover notes

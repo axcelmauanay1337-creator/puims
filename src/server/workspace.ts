@@ -258,6 +258,16 @@ export async function availableUnits(s: Session, kind: EquipmentKind) {
   );
 }
 
+/** How many units of a kind are on the board (not retired). Once there is one, hook-in must pick from the board. */
+export async function boardCount(c: Tx, kind: EquipmentKind): Promise<number> {
+  const r = await c.query<{ n: number }>("SELECT count(*)::int AS n FROM equipment WHERE kind = $1 AND retired_at IS NULL", [kind]);
+  return r.rows[0].n;
+}
+export async function boardUnitCount(s: Session, kind: EquipmentKind): Promise<number> {
+  if (!roleHas(s.role, "clinical:read")) return 0;
+  return as(s, (c) => boardCount(c, kind));
+}
+
 /** Validates that a unit can be put on a patient now. Called inside the hook-in / NIV transaction. */
 export async function assertUnitAssignable(c: Tx, equipmentId: string, kinds: EquipmentKind[]): Promise<{ code: string }> {
   if (!UUID_RE.test(equipmentId)) throw new ClinicalError("INVALID", "Choose a machine.");

@@ -63,6 +63,11 @@ describe("dose times counted from the first dose", () => {
     expect(dosesFromFirst("Q4H", "00:00")).toEqual(["00:00", "04:00", "08:00", "12:00", "16:00", "20:00"]);
     expect(dosesFromFirst("Q12H", "10:15")).toEqual(["10:15", "22:15"]);
   });
+  it("QID = every 6 h; STAT and ONCE are a single dose", () => {
+    expect(dosesFromFirst("QID", "08:00")).toEqual(["02:00", "08:00", "14:00", "20:00"]);
+    expect(dosesFromFirst("STAT", "10:42")).toEqual(["10:42"]);
+    expect(dosesFromFirst("ONCE", "21:00")).toEqual(["21:00"]);
+  });
   it("PRN has no times; a bad first dose is rejected", () => {
     expect(dosesFromFirst("PRN", "08:00")).toEqual([]);
     expect(dosesFromFirst("Q6H", "8")).toBeNull();
