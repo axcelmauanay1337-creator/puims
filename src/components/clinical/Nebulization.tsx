@@ -169,8 +169,19 @@ export function ShowMore({ label, children }: { label: string; children: React.R
 }
 
 /** One card per order with today's dose times as chips (tap an open time to document it). */
-export function NebOrderCards({ rows, canDocument, prn = [] }: { rows: NebRow[]; canDocument: boolean; prn?: ActiveOrder[] }) {
+export function NebOrderCards({
+  rows,
+  canDocument,
+  canOrder = false,
+  prn = [],
+}: {
+  rows: NebRow[];
+  canDocument: boolean;
+  canOrder?: boolean;
+  prn?: ActiveOrder[];
+}) {
   const [dose, setDose] = useState<DoseTarget | null>(null);
+  const [stopping, setStopping] = useState<{ id: string; label: string } | null>(null);
   const byOrder = new Map<string, NebRow[]>();
   for (const r of rows) {
     if (!r.scheduledIso) continue;
@@ -192,6 +203,15 @@ export function NebOrderCards({ rows, canDocument, prn = [] }: { rows: NebRow[];
   return (
     <>
       {dose && <DocumentDoseDialog target={dose} onClose={() => setDose(null)} />}
+      {stopping && (
+        <ReasonDialog
+          title={`Discontinue ${stopping.label}`}
+          explain="The order stops now and its remaining doses disappear from Nebs and Today. Orders are never edited — enter a new order if the physician changes it."
+          submit="Discontinue order"
+          onSubmit={(reason) => discontinueNebOrderAction(stopping.id, reason)}
+          onClose={() => setStopping(null)}
+        />
+      )}
       <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-2" data-testid="neb-order-cards">
         {cards.map((list) => {
           const o = list[0];
@@ -237,6 +257,15 @@ export function NebOrderCards({ rows, canDocument, prn = [] }: { rows: NebRow[];
                   );
                 })}
               </div>
+              {canOrder ? (
+                <button
+                  type="button"
+                  onClick={() => setStopping({ id: o.orderId, label: `${o.medication} · ${o.patient.name}` })}
+                  className="min-h-9 self-start rounded-[8px] border border-[#f0d0cc] px-3 text-[12px] font-semibold text-danger hover:bg-danger-soft"
+                >
+                  Discontinue
+                </button>
+              ) : null}
             </div>
           );
         })}
@@ -261,6 +290,15 @@ export function NebOrderCards({ rows, canDocument, prn = [] }: { rows: NebRow[];
             ) : (
               <span className="text-[12px] text-ink-3">As needed — no fixed times</span>
             )}
+            {canOrder ? (
+              <button
+                type="button"
+                onClick={() => setStopping({ id: o.id, label: `${o.medication} · ${o.patient.name}` })}
+                className="min-h-9 self-start rounded-[8px] border border-[#f0d0cc] px-3 text-[12px] font-semibold text-danger hover:bg-danger-soft"
+              >
+                Discontinue
+              </button>
+            ) : null}
           </div>
         ))}
       </div>

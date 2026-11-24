@@ -84,6 +84,56 @@ export async function getPatientFlags(s: Session, patientId: string): Promise<Pa
   });
 }
 
+// ================================================================= MGH and stopping nebulization
+
+/**
+ * Marks a patient MGH ("may go home"). The database then discontinues all of the patient's active neb orders
+ * (trigger patient_mgh_stop_nebs), so their doses leave the worklist, Today and alerts. Undo clears MGH only.
+ */
+export async function setPatientMgh(s: Session, patientId: string, mgh: boolean): Promise<{ stopped: number }> {
+  if (!roleHas(s.role, "patients:write")) throw new ClinicalError("FORBIDDEN", "You cannot update patients.");
+  if (!UUID_RE.test(patientId)) throw new ClinicalError("NOT_FOUND", "Patient not found.");
+  return as(s, async (c) => {
+    const before = await activeNebCount(c, patientId);
+    const r = await c.query(
+      mgh
+        ? "UPDATE patient SET mgh_at = now(), mgh_by = $2, updated_by = $2 WHERE id = $1 AND voided_at IS NULL AND mgh_at IS NULL"
+        : "UPDATE patient SET mgh_at = NULL, mgh_by = NULL, updated_by = $2 WHERE id = $1 AND voided_at IS NULL AND mgh_at IS NOT NULL",
+      [patientId, s.staffId],
+    );
+    if (!r.rowCount) throw new ClinicalError("CONFLICT", mgh ? "This patient is already marked MGH." : "This patient is not marked MGH.");
+    const stopped = mgh ? before - (await activeNebCount(c, patientId)) : 0;
+    await audit(c, mgh ? "patient.mgh_set" : "patient.mgh_cleared", { neb_orders_discontinued: stopped }, { table: "patient", id: patientId });
+    return { stopped };
+  });
+}
+
+async function activeNebCount(c: Tx, patientId: string): Promise<number> {
+  const r = await c.query<{ n: number }>(
+    "SELECT count(*)::int AS n FROM neb_order WHERE patient_id = $1 AND discontinued_at IS NULL AND (end_at IS NULL OR end_at > now())",
+    [patientId],
+  );
+  return r.rows[0].n;
+}
+
+/** Discontinues every active neb order of one patient at once, with one reason (RTs only, like single orders). */
+export async function discontinueAllNebs(s: Session, patientId: string, reason: string): Promise<{ stopped: number }> {
+  if (!roleHas(s.role, "orders:enter")) throw new ClinicalError("FORBIDDEN", "Only Respiratory Therapists discontinue nebulization orders.");
+  if (!UUID_RE.test(patientId)) throw new ClinicalError("NOT_FOUND", "Patient not found.");
+  const why = reason.trim().replace(/\s+/g, " ");
+  if (why.length < 3 || why.length > 300) throw new ClinicalError("INVALID", "Give a reason (3–300 characters).");
+  return as(s, async (c) => {
+    const r = await c.query(
+      `UPDATE neb_order SET discontinued_at = now(), discontinued_by = $2, discontinue_reason = $3
+        WHERE patient_id = $1 AND discontinued_at IS NULL AND (end_at IS NULL OR end_at > now())`,
+      [patientId, s.staffId, why],
+    );
+    if (!r.rowCount) throw new ClinicalError("NOT_FOUND", "This patient has no active nebulization orders.");
+    await audit(c, "neb_order.discontinued_all", { count: r.rowCount, reason: why }, { table: "patient", id: patientId });
+    return { stopped: r.rowCount ?? 0 };
+  });
+}
+
 export async function updatePatientFlags(s: Session, patientId: string, input: PatientFlags): Promise<void> {
   if (!roleHas(s.role, "patients:write")) throw new ClinicalError("FORBIDDEN", "You cannot update patients.");
   if (!UUID_RE.test(patientId)) throw new ClinicalError("NOT_FOUND", "Patient not found.");

@@ -3,7 +3,18 @@
 import { revalidatePath } from "next/cache";
 import { ClinicalError, requireSession } from "@/server/clinical";
 import { AuthenticationError } from "@/server/session";
-import { endNiv, postCharges, saveEquipment, startNiv, updatePatientFlags, type EquipmentInput, type NivInput, type PatientFlags } from "@/server/workspace";
+import {
+  discontinueAllNebs,
+  endNiv,
+  postCharges,
+  saveEquipment,
+  setPatientMgh,
+  startNiv,
+  updatePatientFlags,
+  type EquipmentInput,
+  type NivInput,
+  type PatientFlags,
+} from "@/server/workspace";
 
 export type WsResult<T = void> = { ok: true; data?: T } | { ok: false; error: string };
 
@@ -36,4 +47,17 @@ export async function saveEquipmentAction(input: EquipmentInput) {
 }
 export async function postChargesAction(date: string, patientIds: string[]) {
   return wrap(async () => postCharges(await requireSession(), date, patientIds), ["/charges"]);
+}
+
+export async function setPatientMghAction(patientId: string, mgh: boolean) {
+  return wrap(
+    async () => setPatientMgh(await requireSession(), patientId, mgh),
+    ["/", "/patients", `/patients/${patientId}`, "/nebulization", "/notifications", "/handover"],
+  );
+}
+export async function discontinueAllNebsAction(patientId: string, reason: string) {
+  return wrap(
+    async () => discontinueAllNebs(await requireSession(), patientId, reason),
+    ["/", `/patients/${patientId}`, "/nebulization", "/notifications", "/handover"],
+  );
 }

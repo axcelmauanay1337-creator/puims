@@ -429,10 +429,11 @@ export async function listPatients() {
       special_endorsement: string | null;
       contact_info: string | null;
       attending_physician: string | null;
+      mgh_at: Date | null;
     }>(
       // Profile only: the masterlist does not show procedures or services (product owner, 2026-11-24).
       `SELECT p.id, p.hospital_patient_id, p.full_name, p.date_of_birth, p.sex, p.category, p.ward_room, p.provenance,
-              p.precautions, p.own_supplies, p.special_endorsement, p.contact_info, p.attending_physician
+              p.precautions, p.own_supplies, p.special_endorsement, p.contact_info, p.attending_physician, p.mgh_at
          FROM patient p
         WHERE p.voided_at IS NULL ORDER BY p.full_name`,
     );
@@ -448,6 +449,7 @@ export async function listPatients() {
       provenance: p.provenance === "IMPORT" ? "IMPORT" : "MANUAL",
       contactInfo: p.contact_info,
       attendingPhysician: p.attending_physician,
+      mghIso: iso(p.mgh_at),
       precautions: p.precautions,
       ownSupplies: p.own_supplies,
       endorsement: p.special_endorsement,
@@ -475,10 +477,17 @@ export async function getPatientProfile(id: string) {
       attending_physician: string | null;
       height_cm: string | null;
       weight_kg: string | null;
+      mgh_at: Date | null;
+      mgh_by_name: string | null;
+      on_vent: boolean;
+      on_niv: boolean;
     }>(
-      `SELECT id, hospital_patient_id, full_name, date_of_birth, sex, category, ward_room, provenance, created_at, updated_at, precautions, own_supplies,
-              special_endorsement, contact_info, attending_physician, height_cm::text, weight_kg::text
-         FROM patient WHERE id = $1 AND voided_at IS NULL`,
+      `SELECT p.id, p.hospital_patient_id, p.full_name, p.date_of_birth, p.sex, p.category, p.ward_room, p.provenance, p.created_at, p.updated_at,
+              p.precautions, p.own_supplies, p.special_endorsement, p.contact_info, p.attending_physician, p.height_cm::text, p.weight_kg::text,
+              p.mgh_at, mb.display_name AS mgh_by_name,
+              EXISTS (SELECT 1 FROM vent_encounter v WHERE v.patient_id = p.id AND v.disconnected_at IS NULL) AS on_vent,
+              EXISTS (SELECT 1 FROM niv_encounter n WHERE n.patient_id = p.id AND n.ended_at IS NULL) AS on_niv
+         FROM patient p LEFT JOIN staff mb ON mb.id = p.mgh_by WHERE p.id = $1 AND p.voided_at IS NULL`,
       [id],
     );
     const p = pr.rows[0];
@@ -498,8 +507,11 @@ export async function getPatientProfile(id: string) {
       prescribed_times: string[];
       prescriber: string;
       start_at: Date;
+      active: boolean;
+      stop_reason: string | null;
     }>(
-      `SELECT id, order_reference, medication_as_ordered AS medication, frequency, prescribed_times::text[] AS prescribed_times, prescriber, start_at
+      `SELECT id, order_reference, medication_as_ordered AS medication, frequency, prescribed_times::text[] AS prescribed_times, prescriber, start_at,
+              (discontinued_at IS NULL AND (end_at IS NULL OR end_at > now())) AS active, discontinue_reason AS stop_reason
          FROM neb_order WHERE patient_id = $1 ORDER BY start_at DESC LIMIT 20`,
       [id],
     );
@@ -540,6 +552,9 @@ export async function getPatientProfile(id: string) {
         attendingPhysician: p.attending_physician,
         heightCm: p.height_cm ? Number(p.height_cm) : null,
         weightKg: p.weight_kg ? Number(p.weight_kg) : null,
+        mgh: p.mgh_at ? { atIso: iso(p.mgh_at)!, by: p.mgh_by_name ?? "—" } : null,
+        onVent: p.on_vent,
+        onNiv: p.on_niv,
       },
       encounters: enc.rows.map((e) => ({
         id: e.id,
@@ -558,6 +573,8 @@ export async function getPatientProfile(id: string) {
         prescribedTimes: o.prescribed_times.map((t) => t.slice(0, 5)),
         prescriber: o.prescriber,
         startIso: iso(o.start_at)!,
+        active: o.active,
+        stopReason: o.stop_reason,
       })),
       diagnostics: dx.rows.map((d) => ({
         id: d.id,

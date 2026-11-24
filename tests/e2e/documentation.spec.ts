@@ -161,3 +161,28 @@ test.describe("ventilation and tubing (RT)", () => {
     await expect(v).toContainText("Extubated");
   });
 });
+
+test.describe("MGH removes the patient from nebulization (Chief RT)", () => {
+  test("marking MGH discontinues the patient's neb orders; undo keeps them stopped", async ({ page }) => {
+    await page.goto("/nebulization");
+    const cards = page.getByTestId("neb-order-cards");
+    const link = cards.locator("a[href^='/patients/']").last();
+    const name = ((await link.textContent()) ?? "").trim();
+    await link.click();
+    await expect(page.getByRole("heading", { name })).toBeVisible();
+    await page.getByRole("button", { name: "Mark MGH" }).click();
+    const dlg = page.getByRole("dialog");
+    await expect(dlg).toContainText("automatically discontinues");
+    await dlg.getByRole("button", { name: "Mark MGH" }).click();
+    await expect(page.getByTestId("mgh-banner")).toContainText("MGH (may go home)");
+    await page.goto("/nebulization");
+    await expect(page.getByTestId("neb-order-cards").getByRole("link", { name, exact: true })).toHaveCount(0);
+    await page.goto("/patients");
+    await page.getByRole("searchbox", { name: /search patient masterlist/i }).fill(name);
+    await expect(page.locator("table").getByText("MGH", { exact: true }).first()).toBeVisible();
+    await page.locator("a[href^='/patients/']").filter({ hasText: name }).first().click();
+    await page.getByRole("button", { name: "Undo MGH" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Undo MGH" }).click();
+    await expect(page.getByTestId("mgh-banner")).toHaveCount(0);
+  });
+});

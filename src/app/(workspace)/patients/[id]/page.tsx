@@ -7,7 +7,7 @@ import { formatClock, formatDateTime, formatShortDate } from "@/lib/time/zoned";
 import { getPatientRevisions } from "@/server/clinical";
 import { getPatientProfile } from "@/server/data";
 import { availableUnits } from "@/server/workspace";
-import { PatientFlagsCard, PatientQuickActions } from "@/components/workspace/PatientPanels";
+import { PatientFlagsCard, PatientQuickActions, PatientStatusPanel } from "@/components/workspace/PatientPanels";
 import { guard } from "@/server/guard";
 import { can } from "@/server/session";
 
@@ -57,6 +57,16 @@ export default async function PatientProfilePage({ params }: PageProps<"/patient
         canSchedule={can(session, "diagnostics:schedule")}
         nivUnits={[...hfnc.map((u) => ({ ...u, kind: "HFNC" as const })), ...bipap.map((u) => ({ ...u, kind: "BIPAP" as const }))]}
         flags={flags}
+      />
+      <PatientStatusPanel
+        patientId={p.id}
+        name={p.fullName}
+        mgh={p.mgh}
+        activeNebs={profile.nebOrders.filter((o) => o.active).length}
+        onVent={p.onVent}
+        onNiv={p.onNiv}
+        canWrite={can(session, "patients:write")}
+        canOrder={can(session, "orders:enter")}
       />
       <PatientFlagsCard patientId={p.id} flags={flags} canEdit={can(session, "patients:write")} />
 
@@ -115,8 +125,11 @@ export default async function PatientProfilePage({ params }: PageProps<"/patient
           ) : (
             <ul className="divide-y divide-line-soft text-[12px]">
               {profile.nebOrders.map((o) => (
-                <li key={o.id} className="py-2">
-                  <b className="block text-[13px]">{o.orderReference}</b>
+                <li key={o.id} className={`py-2 ${o.active ? "" : "text-ink-3"}`}>
+                  <b className="block text-[13px]">
+                    {o.orderReference}
+                    {o.active ? null : <span className="ml-2 font-normal">· Stopped{o.stopReason ? `: ${o.stopReason}` : ""}</span>}
+                  </b>
                   {o.medication} · <Badge>{o.frequency}</Badge> ·{" "}
                   {o.prescribedTimes.length ? o.prescribedTimes.map(formatClock).join(", ") : "no scheduled times on order"} · Attending: {o.prescriber}
                 </li>

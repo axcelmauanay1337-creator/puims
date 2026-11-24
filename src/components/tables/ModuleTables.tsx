@@ -57,6 +57,7 @@ export interface PatientRow {
   provenance: string;
   contactInfo: string | null;
   attendingPhysician: string | null;
+  mghIso: string | null;
   precautions: Precaution[];
   ownSupplies: OwnSupply[];
   endorsement: string | null;
@@ -81,6 +82,7 @@ export function PatientsTable({ rows }: { rows: PatientRow[] }) {
         <Link href={`/patients/${r.id}`} className="block min-w-0">
           <span className="block font-medium hover:underline">{r.name}</span>
           <span className="mt-1 flex flex-wrap gap-1">
+            {r.mghIso ? <span className="rounded-full bg-warning-soft px-2 py-0.5 text-[11px] font-bold text-warning">MGH</span> : null}
             <FlagChips flags={r} />
           </span>
         </Link>
@@ -122,6 +124,15 @@ export function PatientsTable({ rows }: { rows: PatientRow[] }) {
       searchPlaceholder="Hospital no. or name"
       searchText={(r) => `${r.hospitalId} ${r.name} ${r.wardRoom ?? ""} ${r.attendingPhysician ?? ""}`}
       filters={[
+        {
+          key: "mgh",
+          label: "Status",
+          options: [
+            { value: "IN", label: "Admitted / active" },
+            { value: "MGH", label: "MGH" },
+          ],
+          match: (r, v) => (v === "MGH" ? !!r.mghIso : !r.mghIso),
+        },
         {
           key: "cat",
           label: "Category",

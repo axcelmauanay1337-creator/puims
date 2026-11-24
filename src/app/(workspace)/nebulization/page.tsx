@@ -44,7 +44,7 @@ export default async function NebulizationPage() {
         ))}
       </div>
       <h2 className="mb-2 text-[15px] font-semibold">Orders today</h2>
-      <NebOrderCards rows={n.rows} canDocument={canDocument} prn={n.activeOrders.filter((o) => o.frequency === "PRN")} />
+      <NebOrderCards rows={n.rows} canDocument={canDocument} canOrder={canOrder} prn={n.activeOrders.filter((o) => o.frequency === "PRN")} />
       <ShowMore label="All doses today (search, void)">
         <h2 className="mb-2 text-[15px] font-semibold">Worklist — this operational day (6:00 AM–6:00 AM)</h2>
         <NebWorklist rows={n.rows} me={session.staffId} isChief={session.role === "CHIEF_RT_ADMIN"} canDocument={canDocument} />

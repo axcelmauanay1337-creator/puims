@@ -8,6 +8,8 @@ import { formatDateTime, HOSPITAL_TZ, toLocalParts } from "@/lib/time/zoned";
 import type { Session } from "@/server/session";
 import {
   availableUnits,
+  discontinueAllNebs,
+  setPatientMgh,
   endNiv,
   getAlerts,
   getCharges,
@@ -90,6 +92,52 @@ describe("patient profile details", () => {
       [id],
     );
     expect(rev.rows).toEqual([{ b: "Dr. Demo Ramos", a: "Dr. Demo Reyes" }]);
+  });
+});
+
+describe("MGH and discontinue nebulization", () => {
+  it("MGH (even by the Chief RT) discontinues all active neb orders in the database; undo keeps them stopped", async () => {
+    const z = (n: number) => String(n).padStart(2, "0");
+    const local = (d: Date) => {
+      const p = toLocalParts(d, HOSPITAL_TZ);
+      return `${p.year}-${z(p.month)}-${z(p.day)}T${z(p.hour)}:${z(p.minute)}`;
+    };
+    const pid = (await o.query("INSERT INTO patient (full_name, category, ward_room) VALUES ('Mgh, Synthetic', 'INP', 'W-1') RETURNING id")).rows[0].id;
+    const base = {
+      patientId: pid,
+      orderReference: local(new Date(Date.now() - 3 * 3600_000)),
+      prescriber: "Dr. Demo",
+      medicationAsOrdered: "Synthetic",
+      prescribedTimes: "",
+      startAt: "",
+      endAt: "",
+    };
+    await enterNebOrder(rt, { ...base, clientId: randomUUID(), frequency: "Q6H", firstDose: "08:00" });
+    await enterNebOrder(rt, { ...base, clientId: randomUUID(), frequency: "PRN" });
+    const active = async () => (await o.query("SELECT count(*)::int AS n FROM neb_order WHERE patient_id = $1 AND discontinued_at IS NULL", [pid])).rows[0].n;
+    expect(await active()).toBe(2);
+    expect(await setPatientMgh(chief, pid, true)).toEqual({ stopped: 2 });
+    expect(await active()).toBe(0);
+    const why = await o.query("SELECT DISTINCT discontinue_reason, discontinued_by FROM neb_order WHERE patient_id = $1", [pid]);
+    expect(why.rows).toEqual([{ discontinue_reason: "Patient MGH (may go home)", discontinued_by: chief.staffId }]);
+    await expect(setPatientMgh(chief, pid, true)).rejects.toThrow(/already/);
+    expect(await setPatientMgh(rt, pid, false)).toEqual({ stopped: 0 });
+    expect(await active()).toBe(0);
+    const rev = await o.query("SELECT count(*)::int AS n FROM patient_revision WHERE patient_id = $1 AND after_data ? 'mgh_at'", [pid]);
+    expect(rev.rows[0].n).toBe(2);
+  });
+
+  it("Discontinue nebulization stops every active order of one patient (RTs only)", async () => {
+    const pid = (await o.query("INSERT INTO patient (full_name, category, ward_room) VALUES ('Stopall, Synthetic', 'INP', 'W-2') RETURNING id")).rows[0].id;
+    const z = (n: number) => String(n).padStart(2, "0");
+    const p = toLocalParts(new Date(Date.now() - 3600_000), HOSPITAL_TZ);
+    const ref = `${p.year}-${z(p.month)}-${z(p.day)}T${z(p.hour)}:${z(p.minute)}`;
+    const base = { patientId: pid, orderReference: ref, prescriber: "Dr. Demo", medicationAsOrdered: "Synthetic", prescribedTimes: "", startAt: "", endAt: "" };
+    await enterNebOrder(rt, { ...base, clientId: randomUUID(), frequency: "Q8H", firstDose: "06:00" });
+    await enterNebOrder(rt, { ...base, clientId: randomUUID(), frequency: "BID", firstDose: "09:00" });
+    await expect(discontinueAllNebs(chief, pid, "Discontinued by attending physician")).rejects.toThrow(/Respiratory Therapists/);
+    expect(await discontinueAllNebs(rt, pid, "Discontinued by attending physician")).toEqual({ stopped: 2 });
+    await expect(discontinueAllNebs(rt, pid, "again")).rejects.toThrow(/no active/);
   });
 });
 

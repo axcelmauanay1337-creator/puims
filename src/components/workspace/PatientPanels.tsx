@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { startNivAction, updatePatientFlagsAction } from "@/app/actions/workspace";
+import { discontinueAllNebsAction, setPatientMghAction, startNivAction, updatePatientFlagsAction } from "@/app/actions/workspace";
 import { Buttons, FormError, inputCls, labelCls, useClientId } from "@/components/clinical/fields";
+import { formatDateTime } from "@/lib/time/zoned";
 import { BookAppointmentButton } from "@/components/diagnostics/Scheduling";
 import { Modal } from "@/components/ui/Modal";
 import {
@@ -255,5 +256,172 @@ export function StartNivDialog({
         <Buttons pending={pending} submit="Start" onCancel={onClose} />
       </form>
     </Modal>
+  );
+}
+
+const STOP_REASONS = ["Discontinued by attending physician", "Shifted to MDI / other route", "Patient MGH (may go home)"] as const;
+
+/** MGH and "Discontinue nebulization" for one patient. MGH stops all neb orders automatically (done by the database). */
+export function PatientStatusPanel({
+  patientId,
+  name,
+  mgh,
+  activeNebs,
+  onVent,
+  onNiv,
+  canWrite,
+  canOrder,
+}: {
+  patientId: string;
+  name: string;
+  mgh: { atIso: string; by: string } | null;
+  activeNebs: number;
+  onVent: boolean;
+  onNiv: boolean;
+  canWrite: boolean;
+  canOrder: boolean;
+}) {
+  const router = useRouter();
+  const [dialog, setDialog] = useState<"mgh" | "undo" | "stop" | null>(null);
+  const [reason, setReason] = useState<string>(STOP_REASONS[0]);
+  const [other, setOther] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const [done, setDone] = useState<string | null>(null);
+  const run = async (fn: () => Promise<{ ok: boolean; error?: string; data?: { stopped: number } }>, msg: (n: number) => string) => {
+    setPending(true);
+    setError(null);
+    const r = await fn().catch(() => ({ ok: false as const, error: "Could not reach the server. Nothing was changed." }));
+    setPending(false);
+    if (!r.ok) return setError(("error" in r && r.error) || "Not saved.");
+    setDone(msg(("data" in r && r.data?.stopped) || 0));
+    setDialog(null);
+    router.refresh();
+  };
+  const btn = "inline-flex min-h-10 items-center rounded-[8px] border px-3 text-[13px] font-semibold";
+  return (
+    <section aria-label="Patient status" className="mb-4">
+      {mgh ? (
+        <div
+          role="status"
+          className="flex flex-wrap items-center gap-3 rounded-[14px] bg-warning-soft px-4 py-3 text-[13px] text-warning"
+          data-testid="mgh-banner"
+        >
+          <span className="min-w-0 flex-1">
+            <b>MGH (may go home)</b> since {formatDateTime(new Date(mgh.atIso))} · marked by {mgh.by}. Nebulization orders were discontinued.
+          </span>
+          {canWrite ? (
+            <button type="button" className={`${btn} border-[#ebcf94] bg-surface text-ink`} onClick={() => (setError(null), setDialog("undo"))}>
+              Undo MGH
+            </button>
+          ) : null}
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {canWrite ? (
+            <button type="button" className={`${btn} border-line bg-surface hover:bg-hover`} onClick={() => (setError(null), setDialog("mgh"))}>
+              Mark MGH
+            </button>
+          ) : null}
+          {canOrder && activeNebs > 0 ? (
+            <button
+              type="button"
+              className={`${btn} border-[#f0d0cc] bg-surface text-danger hover:bg-danger-soft`}
+              onClick={() => (setError(null), setDialog("stop"))}
+            >
+              Discontinue nebulization ({activeNebs})
+            </button>
+          ) : null}
+        </div>
+      )}
+      {done ? (
+        <p role="status" className="mt-2 text-[12px] text-success">
+          ✓ {done}
+        </p>
+      ) : null}
+
+      {dialog === "mgh" ? (
+        <Modal title={`Mark ${name} as MGH`} onClose={() => setDialog(null)}>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              run(
+                () => setPatientMghAction(patientId, true),
+                (n) => `Marked MGH. ${n} nebulization order(s) discontinued.`,
+              );
+            }}
+          >
+            <p className="text-[13px]">
+              {activeNebs > 0
+                ? `This automatically discontinues ${activeNebs} active nebulization order(s). Their doses disappear from Nebs, Today and alerts.`
+                : "There are no active nebulization orders."}
+            </p>
+            {onVent || onNiv ? (
+              <p role="alert" className="mt-2 rounded-[8px] bg-danger-soft px-3 py-2 text-[12px] text-danger">
+                Still on {onVent ? "a ventilator" : ""}
+                {onVent && onNiv ? " and " : ""}
+                {onNiv ? "HFNC / NIV" : ""}. MGH does not stop it — disconnect or end it separately.
+              </p>
+            ) : null}
+            <FormError error={error} />
+            <Buttons pending={pending} submit="Mark MGH" onCancel={() => setDialog(null)} />
+          </form>
+        </Modal>
+      ) : null}
+
+      {dialog === "undo" ? (
+        <Modal title="Undo MGH" onClose={() => setDialog(null)}>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              run(
+                () => setPatientMghAction(patientId, false),
+                () => "MGH removed. Discontinued orders stay discontinued — enter a new order if nebulization continues.",
+              );
+            }}
+          >
+            <p className="text-[13px]">
+              The patient is no longer marked MGH. Nebulization orders that were discontinued stay discontinued; enter a new order if needed.
+            </p>
+            <FormError error={error} />
+            <Buttons pending={pending} submit="Undo MGH" onCancel={() => setDialog(null)} />
+          </form>
+        </Modal>
+      ) : null}
+
+      {dialog === "stop" ? (
+        <Modal title={`Discontinue nebulization — ${name}`} onClose={() => setDialog(null)}>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const why = reason === "OTHER" ? other : reason;
+              run(
+                () => discontinueAllNebsAction(patientId, why),
+                (n) => `${n} nebulization order(s) discontinued.`,
+              );
+            }}
+          >
+            <p className="text-[13px]">Stops all {activeNebs} active nebulization order(s) for this patient. Remaining doses disappear from Nebs and Today.</p>
+            <fieldset className="mt-3 space-y-1.5">
+              <legend className={labelCls}>Reason</legend>
+              {[...STOP_REASONS, "OTHER"].map((r) => (
+                <label key={r} className="flex min-h-9 items-center gap-2 text-[13px]">
+                  <input type="radio" name="stop-reason" checked={reason === r} onChange={() => setReason(r)} />
+                  {r === "OTHER" ? "Other" : r}
+                </label>
+              ))}
+            </fieldset>
+            {reason === "OTHER" ? (
+              <label className={`${labelCls} mt-2 block`}>
+                Other reason
+                <input className={inputCls} value={other} onChange={(e) => setOther(e.target.value)} maxLength={300} required />
+              </label>
+            ) : null}
+            <FormError error={error} />
+            <Buttons pending={pending} submit="Discontinue nebulization" onCancel={() => setDialog(null)} />
+          </form>
+        </Modal>
+      ) : null}
+    </section>
   );
 }
