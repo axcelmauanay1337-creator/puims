@@ -15,26 +15,20 @@ const btnPrimary =
   "inline-flex min-h-10 items-center rounded-[7px] border border-accent bg-accent px-4 text-[13px] font-semibold text-white hover:bg-accent-hover disabled:opacity-60";
 const unreachable = { ok: false as const, error: "Could not reach the server. Nothing was saved." };
 
-// Items 1–5 print as the numbered "Technician's comments" sentences, exactly as typed (item 6 is the bronchodilator statement).
-const SECTIONS: Array<{ key: keyof PftDraft; label: string; rows: number; max: number; example: string }> = [
-  { key: "spirometryHistory", label: "1. Patient's spirometry Hx", rows: 2, max: 1000, example: "e.g. This is the patient's first time doing the test." },
-  { key: "purposeOfTest", label: "2. Purpose of test", rows: 2, max: 1000, example: "e.g. The purpose of the test is for comprehensive check up." },
-  { key: "smokingHistory", label: "3. Patient's smoking Hx", rows: 2, max: 1000, example: "e.g. The patient is a non-smoker." },
+// One "Technician's comments" section: the guide items (spirometry Hx, purpose, …) are the hints for each numbered line.
+// Lines 1–5 print exactly as typed; line 6 is the bronchodilator statement from the template; "other" prints after it.
+const SECTIONS: Array<{ key: keyof PftDraft; guide: string; example: string; rows: number; max: number }> = [
+  { key: "spirometryHistory", guide: "Patient's spirometry Hx", example: "This is the patient's first time doing the test.", rows: 1, max: 1000 },
+  { key: "purposeOfTest", guide: "Purpose of test", example: "The purpose of the test is for comprehensive check up.", rows: 1, max: 1000 },
+  { key: "smokingHistory", guide: "Patient's smoking Hx", example: "The patient is a non-smoker.", rows: 1, max: 1000 },
   {
     key: "medication",
-    label: "4. Patient's medication",
-    rows: 2,
+    guide: "Patient's medication",
+    example: "The patient did not take any respiratory medication before the procedure.",
+    rows: 1,
     max: 1000,
-    example: "e.g. The patient did not take any respiratory medication before the procedure.",
   },
-  { key: "observation", label: "5. Patient observation", rows: 3, max: 2000, example: "e.g. The patient experienced difficulty during the procedure." },
-  {
-    key: "technicianComments",
-    label: "Other comments (optional — printed after item 6)",
-    rows: 2,
-    max: 2000,
-    example: "Anything else for the pulmonologist",
-  },
+  { key: "observation", guide: "Patient observation", example: "The patient experienced difficulty during the procedure.", rows: 2, max: 2000 },
 ];
 
 const SECTION_LABEL: Record<string, string> = {
@@ -325,16 +319,48 @@ export function PftFormScreen({ form }: { form: PftFormView }) {
             {input("hmo", "HMO", { maxLength: 80 })}
             {input("testType", "Test type", { maxLength: 160 })}
           </fieldset>
-          {SECTIONS.map((s) => (
-            <label key={s.key} className={labelCls}>
-              {s.label}
-              <textarea className={`${inputCls} py-2`} rows={s.rows} maxLength={s.max} value={draft[s.key]} onChange={set(s.key)} placeholder={s.example} />
+          <fieldset className="space-y-2">
+            <legend className="text-[13px] font-semibold">Technician&apos;s comments</legend>
+            <p className="text-[12px] text-ink-3">
+              Use the guide on each line and write it as a sentence — it prints exactly as typed. Line 6 is added automatically.
+            </p>
+            {SECTIONS.map((s, i) => (
+              <label key={s.key} className="flex items-start gap-2">
+                <span className="tabular mt-2.5 w-5 shrink-0 text-right text-[13px] font-semibold">{i + 1}.</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[11px] font-medium text-ink-3">Guide: {s.guide}</span>
+                  <textarea
+                    className={`${inputCls} py-2`}
+                    rows={s.rows}
+                    maxLength={s.max}
+                    value={draft[s.key]}
+                    onChange={set(s.key)}
+                    placeholder={`e.g. ${s.example}`}
+                    aria-label={`Technician's comment ${i + 1} — ${s.guide}`}
+                  />
+                </span>
+              </label>
+            ))}
+            <p className="flex items-start gap-2 text-[13px]">
+              <span className="tabular w-5 shrink-0 text-right font-semibold">6.</span>
+              <span className="text-ink-2">{form.template.bronchodilatorNote || "Bronchodilator statement from the form template"}</span>
+            </p>
+            <label className="flex items-start gap-2">
+              <span className="tabular mt-2.5 w-5 shrink-0 text-right text-[13px] font-semibold">7.</span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[11px] font-medium text-ink-3">Optional: any other comment</span>
+                <textarea
+                  className={`${inputCls} py-2`}
+                  rows={1}
+                  maxLength={2000}
+                  value={draft.technicianComments}
+                  onChange={set("technicianComments")}
+                  aria-label="Technician's comment 7 — other (optional)"
+                />
+              </span>
             </label>
-          ))}
-          <p className="text-[12px] text-ink-3">
-            Write items 1–5 as full sentences — they print as the numbered Technician&apos;s comments. Item 6 (bronchodilator) is added automatically. The
-            interpretation is written by the pulmonologist and recorded at sign-off.
-          </p>
+          </fieldset>
+          <p className="text-[12px] text-ink-3">The interpretation is written by the pulmonologist and recorded at sign-off.</p>
           {msg ? (
             <p role={msg.ok ? "status" : "alert"} className={`text-[12px] ${msg.ok ? "text-success" : "text-danger"}`}>
               {msg.ok ? "✓ " : ""}
