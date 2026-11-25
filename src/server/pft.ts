@@ -457,9 +457,12 @@ export async function createPftForm(s: Session, input: { clientId: string; appoi
       date_of_birth: string | null;
       hospital_patient_id: string | null;
       ward_room: string | null;
+      weight_kg: string | null;
+      height_cm: string | null;
+      attending_physician: string | null;
     }>(
       `SELECT d.patient_id, d.service, d.scheduled_at, d.status, d.procedure_label, d.requesting_physician, d.category, d.voided_at,
-              p.full_name, p.sex, p.date_of_birth, p.hospital_patient_id, p.ward_room
+              p.full_name, p.sex, p.date_of_birth, p.hospital_patient_id, p.ward_room, p.weight_kg::text, p.height_cm::text, p.attending_physician
          FROM diagnostic_appointment d JOIN patient p ON p.id = d.patient_id WHERE d.id = $1`,
       [input.appointmentId],
     );
@@ -476,8 +479,8 @@ export async function createPftForm(s: Session, input: { clientId: string; appoi
     // Narrative / clinical sections always start empty.
     await c.query(
       `INSERT INTO pft_form (id, appointment_id, patient_id, template_id, test_date, patient_name, sex, age_text, birthdate, hospital_number,
-                             room_or_opd, requesting_physician, test_type, created_by, device_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+                             room_or_opd, requesting_physician, test_type, created_by, device_id, weight_kg, height_cm)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
       [
         input.clientId,
         input.appointmentId,
@@ -490,10 +493,13 @@ export async function createPftForm(s: Session, input: { clientId: string; appoi
         row.date_of_birth,
         row.hospital_patient_id,
         row.category === "OPD" ? "OUTPATIENT" : (row.ward_room ?? null),
-        row.requesting_physician,
+        row.requesting_physician ?? row.attending_physician,
         row.procedure_label,
         s.staffId,
         s.deviceId,
+        // Weight and height from the Patient Master profile (editable on the form until signing).
+        row.weight_kg,
+        row.height_cm,
       ],
     );
     await audit(c, "pft.form_created", { template_version: template.version }, { table: "pft_form", id: input.clientId });

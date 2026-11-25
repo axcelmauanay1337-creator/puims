@@ -7,7 +7,7 @@ import type { AdminResult } from "@/app/actions/admin";
 import { useSensitiveAction } from "@/components/admin/useSensitiveAction";
 import { FormError, inputCls, labelCls, useClientId } from "@/components/clinical/fields";
 import { Modal } from "@/components/ui/Modal";
-import { formatDateTime, formatLongDate } from "@/lib/time/zoned";
+import { formatDateTime } from "@/lib/time/zoned";
 import type { PftDraft, PftFormView } from "@/server/pft";
 
 const btn = "inline-flex min-h-10 items-center rounded-[7px] border border-line bg-surface px-3 text-[13px] font-medium hover:bg-hover disabled:opacity-60";
@@ -15,13 +15,26 @@ const btnPrimary =
   "inline-flex min-h-10 items-center rounded-[7px] border border-accent bg-accent px-4 text-[13px] font-semibold text-white hover:bg-accent-hover disabled:opacity-60";
 const unreachable = { ok: false as const, error: "Could not reach the server. Nothing was saved." };
 
-const SECTIONS: Array<{ key: keyof PftDraft; label: string; rows: number; max: number }> = [
-  { key: "technicianComments", label: "Technician's comments", rows: 3, max: 2000 },
-  { key: "spirometryHistory", label: "1. Patient's spirometry Hx", rows: 2, max: 1000 },
-  { key: "purposeOfTest", label: "2. Purpose of test", rows: 2, max: 1000 },
-  { key: "smokingHistory", label: "3. Patient's smoking Hx", rows: 2, max: 1000 },
-  { key: "medication", label: "4. Patient's medication", rows: 2, max: 1000 },
-  { key: "observation", label: "5. Patient observation", rows: 3, max: 2000 },
+// Items 1–5 print as the numbered "Technician's comments" sentences, exactly as typed (item 6 is the bronchodilator statement).
+const SECTIONS: Array<{ key: keyof PftDraft; label: string; rows: number; max: number; example: string }> = [
+  { key: "spirometryHistory", label: "1. Patient's spirometry Hx", rows: 2, max: 1000, example: "e.g. This is the patient's first time doing the test." },
+  { key: "purposeOfTest", label: "2. Purpose of test", rows: 2, max: 1000, example: "e.g. The purpose of the test is for comprehensive check up." },
+  { key: "smokingHistory", label: "3. Patient's smoking Hx", rows: 2, max: 1000, example: "e.g. The patient is a non-smoker." },
+  {
+    key: "medication",
+    label: "4. Patient's medication",
+    rows: 2,
+    max: 1000,
+    example: "e.g. The patient did not take any respiratory medication before the procedure.",
+  },
+  { key: "observation", label: "5. Patient observation", rows: 3, max: 2000, example: "e.g. The patient experienced difficulty during the procedure." },
+  {
+    key: "technicianComments",
+    label: "Other comments (optional — printed after item 6)",
+    rows: 2,
+    max: 2000,
+    example: "Anything else for the pulmonologist",
+  },
 ];
 
 const SECTION_LABEL: Record<string, string> = {
@@ -37,164 +50,204 @@ const SECTION_LABEL: Record<string, string> = {
   OTHER: "Other / not stated",
 };
 
-/** One "Label: value" cell of the paper form; empty values print as a blank line to write on. */
-function Line({ label, value, className = "" }: { label: string; value: ReactNode; className?: string }) {
-  return (
-    <div className={`flex min-w-0 items-end gap-1.5 ${className}`}>
-      <span className="shrink-0 text-[12px] font-semibold">{label}</span>
-      <span className="min-h-5 min-w-0 flex-1 border-b border-ink/60 px-1 text-[13px] break-words">{value || "\u00a0"}</span>
-    </div>
-  );
+const MONTHS_LONG = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+/** "2026-11-25" → "November 25, 2026" (as on the hospital's printed form). */
+function paperDate(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return `${MONTHS_LONG[m - 1]} ${String(d).padStart(2, "0")}, ${y}`;
 }
 
-function Numbered({ n, label, value }: { n: number; label: string; value: string }) {
+const COMMENT_HINTS = ["Patient's spirometry history", "Purpose of test", "Patient's smoking history", "Patient's medication", "Patient observation", ""];
+
+/** Signature caption as on the form: "JUAN D. CRUZ , RTRP" / "MARIA SANTOS , MD". */
+function signatureCaption(name: string | undefined, credentials: string | null | undefined, fallback: string): string {
+  if (!name) return "";
+  const clean = name
+    .replace(/^\s*dr\.?\s+/i, "")
+    .trim()
+    .toUpperCase();
+  return `${clean} , ${(credentials || fallback).toUpperCase()}`;
+}
+
+/** One bordered cell of the PATIENT INFORMATION table: bold label, plain value. */
+function Cell({ label, value, span = 1 }: { label: string; value: ReactNode; span?: number }) {
   return (
-    <div className="mt-2">
-      <p className="text-[12px] font-bold uppercase">
-        {n}. {label}
-      </p>
-      <p className="min-h-6 border-b border-ink/40 px-1 text-[13px] whitespace-pre-wrap">{value || "\u00a0"}</p>
-    </div>
+    <td colSpan={span} className="border border-black px-1 py-[1px] align-top break-words">
+      <b>{label}</b> {value || "\u00a0"}
+    </td>
   );
 }
 
 /**
- * The record as it prints. Layout and labels follow the hospital's PFT guide (form AS-PUL-PFT-006):
- * header, PULMONARY FUNCTION TEST, DATE, PATIENT INFORMATION, technician's comments, items 1–6,
- * INTERPRETATION, RTOD / DOCTOR signature lines and the form code.
+ * The record as it prints — matches the hospital's printed PFT result (form AS-PUL-PFT-006):
+ * logo beside the hospital header, PULMONARY FUNCTION TEST, DATE, PATIENT INFORMATION table, Technician's comments
+ * as numbered sentences (guide items 1–5 filled in, 6 = bronchodilator statement), INTERPRETATION, RT and
+ * pulmonologist signatures with "NAME , RTRP" / "NAME , MD", and the form code centred at the bottom.
  */
 function FormDocument({ f }: { f: PftFormView }) {
   const d = f.draft;
   const t = f.template;
-  const sex = d.sex === "M" ? "Male" : d.sex === "F" ? "Female" : "";
+  const sex = d.sex === "M" ? "MALE" : d.sex === "F" ? "FEMALE" : "";
+  // Fixed numbering as on the guide: 1–5 the RT's sentences, 6 the bronchodilator statement, extra comments after.
+  const comments = [d.spirometryHistory, d.purposeOfTest, d.smokingHistory, d.medication, d.observation, t.bronchodilatorNote ?? ""].map((x) =>
+    (x ?? "").trim(),
+  );
+  if ((d.technicianComments ?? "").trim()) comments.push(d.technicianComments.trim());
+  const rtCaption = signatureCaption(f.rtSignature?.name, "RTRP", "RTRP");
+  const mdCaption = signatureCaption(f.pulmoSignoff?.name, null, "MD");
   return (
-    <article className="pft-paper rounded-[10px] border border-line bg-surface p-5 text-ink print:rounded-none print:border-0 print:p-0" aria-label="PFT form">
+    <article
+      className="pft-paper mx-auto flex max-w-[210mm] flex-col rounded-[10px] border border-line bg-white p-6 font-[Times_New_Roman,Times,serif] text-[13px] text-black print:min-h-[268mm] print:max-w-none print:rounded-none print:border-0 print:p-0"
+      aria-label="PFT form"
+    >
       {f.status !== "FINAL" ? (
-        <p className="mb-3 rounded-[7px] border border-warning bg-warning-soft px-3 py-1.5 text-center text-[12px] font-semibold text-warning">
+        <p className="mb-3 rounded-[7px] border border-warning bg-warning-soft px-3 py-1.5 text-center font-sans text-[12px] font-semibold text-warning">
           {f.status === "DRAFT" ? "DRAFT — not signed, not an official record" : "RT SIGNED — awaiting pulmonologist sign-off; not yet final"}
         </p>
       ) : null}
       {!t.hospitalConfirmed ? (
-        <p className="no-print mb-3 text-center text-[11px] text-ink-3">
+        <p className="no-print mb-3 text-center font-sans text-[11px] text-ink-3">
           Template v{t.version}: not yet confirmed as current by the Chief RT (Settings → PFT form template).
         </p>
       ) : null}
-      <header className="text-center">
+
+      <header className="flex items-center justify-center gap-6 font-[Arial,Helvetica,sans-serif]">
         {t.hasLogo ? (
           // eslint-disable-next-line @next/next/no-img-element -- authenticated, versioned image that must print exactly
-          <img src={`/api/pft/logo/${t.id}`} alt={`${t.facilityHeader} logo`} className="mx-auto mb-1 h-16 w-auto print:h-[18mm]" />
+          <img src={`/api/pft/logo/${t.id}`} alt={`${t.facilityHeader} logo`} className="h-16 w-auto print:h-[17mm]" />
         ) : null}
-        <p className="text-[15px] font-bold">{t.facilityHeader}</p>
-        {t.facilityAddress ? <p className="text-[11px] whitespace-pre-line">{t.facilityAddress}</p> : null}
-        <h2 className="mt-3 text-[18px] font-bold tracking-[0.08em]">PULMONARY FUNCTION TEST</h2>
+        <div className="text-center">
+          <p className="text-[19px] leading-tight font-bold">{t.facilityHeader}</p>
+          {t.facilityAddress ? <p className="text-[9.5px] leading-snug font-bold whitespace-pre-line">{t.facilityAddress}</p> : null}
+        </div>
       </header>
+      <h2 className="mt-8 text-center font-[Arial,Helvetica,sans-serif] text-[17px] font-bold">PULMONARY FUNCTION TEST</h2>
 
-      <div className="mt-3 max-w-[260px]">
-        <Line label="DATE:" value={d.testDate ? formatLongDate(d.testDate) : ""} />
-      </div>
+      <p className="mt-6">
+        <b>DATE:</b> {d.testDate ? paperDate(d.testDate).toUpperCase() : "\u00a0"}
+      </p>
+      <h3 className="mt-1 text-center text-[15px] font-bold">PATIENT INFORMATION</h3>
 
-      <h3 className="mt-4 text-[13px] font-bold tracking-[0.04em]">PATIENT INFORMATION</h3>
-      <div className="mt-1 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-12 print:grid-cols-12">
-        <Line className="col-span-2 sm:col-span-6 print:col-span-6" label="Name:" value={d.patientName} />
-        <Line className="sm:col-span-2 print:col-span-2" label="Sex:" value={sex} />
-        <Line className="sm:col-span-1 print:col-span-1" label="Age:" value={d.ageText} />
-        <Line className="col-span-2 sm:col-span-3 print:col-span-3" label="Birthdate:" value={d.birthdate ? formatLongDate(d.birthdate) : ""} />
-        <Line className="col-span-2 sm:col-span-3 print:col-span-3" label="Hospital No.:" value={d.hospitalNumber} />
-        <Line className="sm:col-span-3 print:col-span-3" label="Weight (kg):" value={d.weightKg} />
-        <Line className="sm:col-span-3 print:col-span-3" label="Height (cm):" value={d.heightCm} />
-        <Line className="col-span-2 sm:col-span-3 print:col-span-3" label="Room:" value={d.roomOrOpd} />
-        <Line className="col-span-2 sm:col-span-8 print:col-span-8" label="Requesting Physician:" value={d.requestingPhysician} />
-        <Line className="col-span-2 sm:col-span-4 print:col-span-4" label="HMO:" value={d.hmo} />
-        <Line className="col-span-2 sm:col-span-12 print:col-span-12" label="Test Type:" value={d.testType} />
-      </div>
+      <table className="mt-3 w-full table-fixed border-collapse border border-black leading-snug" aria-label="Patient information">
+        <colgroup>
+          <col className="w-[10.7%]" />
+          <col className="w-[14.3%]" />
+          <col className="w-[18.3%]" />
+          <col className="w-[17.1%]" />
+          <col className="w-[10.4%]" />
+          <col className="w-[29.2%]" />
+        </colgroup>
+        <tbody>
+          <tr>
+            <Cell label="Name:" value={d.patientName.toUpperCase()} span={3} />
+            <Cell label="Sex:" value={sex} />
+            <Cell label="Age:" value={d.ageText} />
+            <Cell label="Birthdate:" value={d.birthdate ? paperDate(d.birthdate) : ""} />
+          </tr>
+          <tr>
+            <Cell label="Hospital No.:" value={d.hospitalNumber} span={2} />
+            <Cell label="Weight (kg):" value={d.weightKg} />
+            <Cell label="Height (cm):" value={d.heightCm} />
+            <Cell label="Room:" value={(d.roomOrOpd || "").toUpperCase()} span={2} />
+          </tr>
+          <tr>
+            <Cell label="Requesting Physician:" value={(d.requestingPhysician || "").toUpperCase()} span={4} />
+            <Cell label="HMO:" value={(d.hmo || "").toUpperCase()} span={2} />
+          </tr>
+          <tr>
+            <td className="border border-black px-1 py-[1px] align-top font-bold">Test Type:</td>
+            <td colSpan={5} className="border border-black px-1 py-[1px] align-top break-words">
+              {(d.testType || "").toUpperCase() || "\u00a0"}
+            </td>
+          </tr>
+        </tbody>
+      </table>
 
-      <div className="mt-3">
-        <p className="text-[12px] font-semibold">Technician&apos;s comments:</p>
-        <p className="min-h-10 border-b border-ink/40 px-1 text-[13px] whitespace-pre-wrap">{d.technicianComments || "\u00a0"}</p>
-      </div>
-      <Numbered n={1} label="Patient's spirometry Hx" value={d.spirometryHistory} />
-      <Numbered n={2} label="Purpose of test" value={d.purposeOfTest} />
-      <Numbered n={3} label="Patient's smoking Hx" value={d.smokingHistory} />
-      <Numbered n={4} label="Patient's medication" value={d.medication} />
-      <Numbered n={5} label="Patient observation" value={d.observation} />
-      {t.bronchodilatorNote ? (
-        <p className="mt-2 text-[12px] font-bold">
-          6. {t.bronchodilatorNote}
-          {!t.hospitalConfirmed ? <span className="no-print ml-1 font-normal text-ink-3">(form statement — Chief RT to confirm it is current)</span> : null}
-        </p>
-      ) : null}
+      <section className="mt-12" aria-label="Technician's comments">
+        <p className="font-bold">Technician&apos;s comments:</p>
+        <ol className="mt-0.5 leading-snug">
+          {comments.map((c, i) => (
+            <li key={i} className="min-h-[1.3em] whitespace-pre-wrap">
+              {i + 1}. {c || <span className="no-print font-sans text-[11px] text-ink-3">{COMMENT_HINTS[i]}</span>}
+            </li>
+          ))}
+        </ol>
+        {!t.hospitalConfirmed && t.bronchodilatorNote ? (
+          <p className="no-print mt-1 font-sans text-[11px] text-ink-3">
+            Bronchodilator statement is from the form template — Chief RT to confirm it is current.
+          </p>
+        ) : null}
+      </section>
 
-      <h3 className="mt-4 text-[13px] font-bold tracking-[0.04em]">INTERPRETATION:</h3>
-      <div className="mt-1 min-h-28 rounded-[4px] border border-ink/50 px-3 py-2 text-[13px] whitespace-pre-wrap print:min-h-[60mm]">
-        {f.interpretation ?? <span className="no-print text-ink-3">Written by the pulmonologist.</span>}
-      </div>
-
-      <div className="mt-8 grid grid-cols-2 gap-8 text-center text-[12px]">
-        <div>
-          <p className="text-left text-[11px] font-bold">RTOD</p>
-          <div className="flex min-h-10 items-end justify-center border-b border-ink">
-            {f.rtSignature?.hasImage ? (
-              // eslint-disable-next-line @next/next/no-img-element -- approved e-signature image, must print exactly
-              <img
-                src={`/api/signatory/${f.rtSignature.signatoryId}/signature`}
-                alt={`E-signature of ${f.rtSignature.name}`}
-                className="max-h-14 w-auto print:max-h-[16mm]"
-              />
-            ) : f.rtSignature ? (
-              <span className="text-[10px] text-ink-2">Signed electronically {formatDateTime(new Date(f.rtSignature.signedIso))}</span>
-            ) : null}
-          </div>
-          <p className="mt-1 font-semibold">{f.rtSignature?.name ?? "\u00a0"}</p>
-          {f.rtSignature?.credentials ? <p className="text-[11px]">{f.rtSignature.credentials}</p> : null}
-          <p className="text-[11px]">Respiratory Therapist</p>
+      <section className="mt-12 flex-1" aria-label="Interpretation">
+        <p className="font-bold">INTERPRETATION:</p>
+        <div className="mt-1 min-h-40 whitespace-pre-wrap print:min-h-[70mm]">
+          {f.interpretation ?? <span className="no-print font-sans text-[12px] text-ink-3">Written by the pulmonologist.</span>}
         </div>
-        <div>
-          <p className="text-left text-[11px] font-bold">DOCTOR</p>
-          <div className="flex min-h-10 items-end justify-center border-b border-ink">
-            {f.pulmoSignoff?.method === "E_SIGNATURE_APPLIED_BY_RT" && f.pulmoSignoff.hasImage ? (
-              // eslint-disable-next-line @next/next/no-img-element -- approved e-signature image, must print exactly
-              <img
-                src={`/api/signatory/${f.pulmoSignoff.signatoryId}/signature`}
-                alt={`E-signature of ${f.pulmoSignoff.name}`}
-                className="max-h-14 w-auto print:max-h-[16mm]"
-              />
-            ) : f.pulmoSignoff ? (
-              <span className="text-[10px] text-ink-2">
-                Signed on the printed copy · recorded {formatDateTime(new Date(f.pulmoSignoff.recordedIso))} by {f.pulmoSignoff.recordedBy}
-              </span>
-            ) : null}
-          </div>
-          <p className="mt-1 font-semibold">{f.pulmoSignoff?.name ?? "\u00a0"}</p>
-          {f.pulmoSignoff?.credentials ? <p className="text-[11px]">{f.pulmoSignoff.credentials}</p> : null}
-          <p className="text-[11px]">Pulmonologist</p>
-          {f.pulmoSignoff?.method === "E_SIGNATURE_APPLIED_BY_RT" ? (
-            <p className="text-[9px] text-ink-3">
-              E-signature applied {formatDateTime(new Date(f.pulmoSignoff.recordedIso))} by {f.pulmoSignoff.recordedBy}
-            </p>
-          ) : null}
-        </div>
-      </div>
+      </section>
 
       {f.amendments.length ? (
-        <section className="mt-6" aria-label="Amendments">
-          <h3 className="text-[12px] font-bold uppercase tracking-[0.06em]">Amendments (appended after finalization)</h3>
-          <ol className="mt-1 space-y-2">
+        <section className="mt-4" aria-label="Amendments">
+          <p className="font-bold">AMENDMENTS (appended after finalization):</p>
+          <ol className="mt-1 space-y-1">
             {f.amendments.map((a, i) => (
-              <li key={a.id} className="rounded-[7px] border border-line px-3 py-2 text-[12px]">
-                <p className="font-semibold">
-                  {i + 1}. {SECTION_LABEL[a.section] ?? a.section} · {formatDateTime(new Date(a.createdIso))} · {a.createdBy}
-                </p>
-                <p className="whitespace-pre-wrap">{a.text}</p>
-                <p className="text-ink-2">Reason: {a.reason}</p>
+              <li key={a.id}>
+                <b>
+                  {i + 1}. {SECTION_LABEL[a.section] ?? a.section} · {formatDateTime(new Date(a.createdIso))} · {a.createdBy}:
+                </b>{" "}
+                <span className="whitespace-pre-wrap">{a.text}</span> <i>(Reason: {a.reason})</i>
               </li>
             ))}
           </ol>
         </section>
       ) : null}
 
-      <footer className="mt-6 flex justify-between text-[10px] text-ink-3">
-        <span>{t.formCode}</span>
-        <span>PUIMS record {f.id.slice(0, 8)}</span>
+      <div className="mt-10 grid grid-cols-2 gap-10 font-[Calibri,Carlito,Arial,sans-serif] text-[13px]">
+        <div className="text-center">
+          <div className="relative flex h-14 items-end justify-center">
+            {f.rtSignature?.hasImage ? (
+              // eslint-disable-next-line @next/next/no-img-element -- approved e-signature image, must print exactly
+              <img
+                src={`/api/signatory/${f.rtSignature.signatoryId}/signature`}
+                alt={`E-signature of ${f.rtSignature.name}`}
+                className="absolute bottom-[-10px] left-1/2 max-h-16 w-auto -translate-x-1/2 print:max-h-[17mm]"
+              />
+            ) : f.rtSignature ? (
+              <span className="no-print text-[10px] text-ink-2">Signed electronically {formatDateTime(new Date(f.rtSignature.signedIso))}</span>
+            ) : null}
+          </div>
+          <p className="relative">{rtCaption || "______________________ , RTRP"}</p>
+          <p className="font-bold">Respiratory Therapist</p>
+        </div>
+        <div className="text-center">
+          <div className="relative flex h-14 items-end justify-center">
+            {f.pulmoSignoff?.method === "E_SIGNATURE_APPLIED_BY_RT" && f.pulmoSignoff.hasImage ? (
+              // eslint-disable-next-line @next/next/no-img-element -- approved e-signature image, must print exactly
+              <img
+                src={`/api/signatory/${f.pulmoSignoff.signatoryId}/signature`}
+                alt={`E-signature of ${f.pulmoSignoff.name}`}
+                className="absolute bottom-[-10px] left-1/2 max-h-16 w-auto -translate-x-1/2 print:max-h-[17mm]"
+              />
+            ) : f.pulmoSignoff ? (
+              <span className="no-print text-[10px] text-ink-2">
+                Signed on the printed copy · recorded {formatDateTime(new Date(f.pulmoSignoff.recordedIso))} by {f.pulmoSignoff.recordedBy}
+              </span>
+            ) : null}
+          </div>
+          <p className="relative">{mdCaption || "______________________ , MD"}</p>
+          <p className="font-bold">Pulmonologist</p>
+          {f.pulmoSignoff?.method === "E_SIGNATURE_APPLIED_BY_RT" ? (
+            <p className="no-print text-[9px] text-ink-3">
+              E-signature applied {formatDateTime(new Date(f.pulmoSignoff.recordedIso))} by {f.pulmoSignoff.recordedBy}
+            </p>
+          ) : null}
+        </div>
+      </div>
+
+      <footer className="mt-10 font-[Calibri,Carlito,Arial,sans-serif] text-[11px]">
+        <p className="text-center">{t.formCode}</p>
+        <p className="no-print text-right text-[10px] text-ink-3">PUIMS record {f.id.slice(0, 8)}</p>
       </footer>
     </article>
   );
@@ -275,10 +328,13 @@ export function PftFormScreen({ form }: { form: PftFormView }) {
           {SECTIONS.map((s) => (
             <label key={s.key} className={labelCls}>
               {s.label}
-              <textarea className={`${inputCls} py-2`} rows={s.rows} maxLength={s.max} value={draft[s.key]} onChange={set(s.key)} />
+              <textarea className={`${inputCls} py-2`} rows={s.rows} maxLength={s.max} value={draft[s.key]} onChange={set(s.key)} placeholder={s.example} />
             </label>
           ))}
-          <p className="text-[12px] text-ink-3">The interpretation is written by the pulmonologist and recorded at sign-off.</p>
+          <p className="text-[12px] text-ink-3">
+            Write items 1–5 as full sentences — they print as the numbered Technician&apos;s comments. Item 6 (bronchodilator) is added automatically. The
+            interpretation is written by the pulmonologist and recorded at sign-off.
+          </p>
           {msg ? (
             <p role={msg.ok ? "status" : "alert"} className={`text-[12px] ${msg.ok ? "text-success" : "text-danger"}`}>
               {msg.ok ? "✓ " : ""}
