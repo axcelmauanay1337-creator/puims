@@ -106,10 +106,10 @@ function FormDocument({ f }: { f: PftFormView }) {
         </p>
       ) : null}
 
-      <header className="flex items-center justify-center gap-6 font-[Arial,Helvetica,sans-serif]">
+      <header className="relative flex min-h-16 items-center justify-center font-[Arial,Helvetica,sans-serif] print:min-h-[17mm]">
         {t.hasLogo ? (
           // eslint-disable-next-line @next/next/no-img-element -- authenticated, versioned image that must print exactly
-          <img src={`/api/pft/logo/${t.id}`} alt={`${t.facilityHeader} logo`} className="h-16 w-auto print:h-[17mm]" />
+          <img src={`/api/pft/logo/${t.id}`} alt={`${t.facilityHeader} logo`} className="absolute top-1/2 left-0 h-16 w-auto -translate-y-1/2 print:h-[17mm]" />
         ) : null}
         <div className="text-center">
           <p className="text-[19px] leading-tight font-bold">{t.facilityHeader}</p>
@@ -123,7 +123,7 @@ function FormDocument({ f }: { f: PftFormView }) {
       </p>
       <h3 className="mt-1 text-center text-[15px] font-bold">PATIENT INFORMATION</h3>
 
-      <table className="mt-3 w-full table-fixed border-collapse border border-black leading-snug" aria-label="Patient information">
+      <table className="mt-3 w-[calc(100%-1px)] table-fixed border-collapse border border-black leading-snug" aria-label="Patient information">
         <colgroup>
           <col className="w-[10.7%]" />
           <col className="w-[14.3%]" />
