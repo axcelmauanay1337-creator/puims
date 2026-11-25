@@ -85,4 +85,21 @@ body {
   @page {
     margin: 14mm 12mm;
   }
+  /* The PFT result is the hospital's own A4 form: no browser header/footer (date, title, URL, page numbers) —
+     a zero page margin leaves no room for them — and exactly one page, with the form's own margins inside. */
+  @page pft {
+    size: A4;
+    margin: 0;
+  }
+  .pft-paper {
+    page: pft;
+    box-sizing: border-box;
+    width: 210mm !important;
+    height: 296mm !important;
+    max-width: none !important;
+    padding: 10mm 14mm 8mm !important;
+    overflow: hidden;
+    break-inside: avoid;
+    break-after: avoid;
+  }
 }

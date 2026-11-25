@@ -92,11 +92,11 @@ function FormDocument({ f }: { f: PftFormView }) {
   const mdCaption = signatureCaption(f.pulmoSignoff?.name, null, "MD");
   return (
     <article
-      className="pft-paper mx-auto flex max-w-[210mm] flex-col rounded-[10px] border border-line bg-white p-6 font-[Times_New_Roman,Times,serif] text-[13px] text-black print:min-h-[268mm] print:max-w-none print:rounded-none print:border-0 print:p-0"
+      className="pft-paper mx-auto flex max-w-[210mm] flex-col rounded-[10px] border border-line bg-white p-6 font-[Times_New_Roman,Times,serif] text-[13px] text-black print:rounded-none print:border-0"
       aria-label="PFT form"
     >
       {f.status !== "FINAL" ? (
-        <p className="mb-3 rounded-[7px] border border-warning bg-warning-soft px-3 py-1.5 text-center font-sans text-[12px] font-semibold text-warning">
+        <p className="no-print mb-3 rounded-[7px] border border-warning bg-warning-soft px-3 py-1.5 text-center font-sans text-[12px] font-semibold text-warning">
           {f.status === "DRAFT" ? "DRAFT — not signed, not an official record" : "RT SIGNED — awaiting pulmonologist sign-off; not yet final"}
         </p>
       ) : null}
